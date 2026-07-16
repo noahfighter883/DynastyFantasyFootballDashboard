@@ -1,0 +1,10 @@
+{
+  "description": "Analyze and compare team strengths in a 12-team dynasty fantasy football league with detailed metrics for roster performance and projected points.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
