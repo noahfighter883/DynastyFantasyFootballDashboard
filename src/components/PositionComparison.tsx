@@ -131,8 +131,8 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
         <div
           style={{
             display: 'flex',
-            background: '#141720',
-            border: '1px solid #1f2333',
+            background: '#131a2b',
+            border: '1px solid #232c47',
             borderRadius: 7,
             padding: 3,
             gap: 2,
@@ -165,8 +165,8 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
         <div
           style={{
             display: 'flex',
-            background: '#141720',
-            border: '1px solid #1f2333',
+            background: '#131a2b',
+            border: '1px solid #232c47',
             borderRadius: 7,
             padding: 3,
             gap: 2,
@@ -197,8 +197,8 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
         <div
           style={{
             display: 'flex',
-            background: '#141720',
-            border: '1px solid #1f2333',
+            background: '#131a2b',
+            border: '1px solid #232c47',
             borderRadius: 7,
             padding: 3,
             gap: 2,
@@ -213,9 +213,9 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
                 borderRadius: 5,
                 fontSize: 12,
                 fontWeight: metric === m ? 600 : 400,
-                background: metric === m ? '#1e2130' : 'transparent',
+                background: metric === m ? '#1c2540' : 'transparent',
                 color: metric === m ? '#e2e4e9' : '#6b7280',
-                border: metric === m ? '1px solid #2a2f42' : '1px solid transparent',
+                border: metric === m ? '1px solid #2e3a5c' : '1px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
               }}
@@ -246,8 +246,8 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
       {/* Ranked bars */}
       <div
         style={{
-          background: '#141720',
-          border: '1px solid #1f2333',
+          background: '#131a2b',
+          border: '1px solid #232c47',
           borderRadius: 10,
           overflow: 'hidden',
         }}
@@ -258,10 +258,10 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
             display: 'grid',
             gridTemplateColumns: '36px 1fr 90px 200px 120px',
             padding: '10px 20px',
-            borderBottom: '1px solid #1f2333',
+            borderBottom: '1px solid #232c47',
             gap: 12,
             alignItems: 'center',
-            background: '#0d0f14',
+            background: '#0a0f1e',
           }}
         >
           {['RK', 'TEAM', 'PLAYERS', 'VALUE BAR', scope === 'starters' ? 'STARTERS' : scope === 'starters_plus1' ? 'STARTERS +1' : 'ROSTER'].map((h) => (
@@ -294,14 +294,14 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
                 display: 'grid',
                 gridTemplateColumns: '36px 1fr 90px 200px 120px',
                 padding: '14px 20px',
-                borderBottom: idx < ranked.length - 1 ? '1px solid #1a1d27' : 'none',
+                borderBottom: idx < ranked.length - 1 ? '1px solid #1b2438' : 'none',
                 gap: 12,
                 alignItems: 'center',
                 cursor: 'pointer',
                 transition: 'background 0.12s',
               }}
               onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = '#1a1d27'
+                ;(e.currentTarget as HTMLElement).style.background = '#1b2438'
               }}
               onMouseLeave={(e) => {
                 ;(e.currentTarget as HTMLElement).style.background = 'transparent'
@@ -336,7 +336,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
 
               {/* Bar */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ height: 8, background: '#1f2333', borderRadius: 3, overflow: 'hidden' }}>
+                <div style={{ height: 8, background: '#232c47', borderRadius: 3, overflow: 'hidden' }}>
                   <div
                     style={{
                       height: '100%',
@@ -386,8 +386,8 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
               <div
                 key={p}
                 style={{
-                  background: '#141720',
-                  border: `1px solid #1f2333`,
+                  background: '#131a2b',
+                  border: `1px solid #232c47`,
                   borderTop: `2px solid ${POS_COLORS[p]}`,
                   borderRadius: 8,
                   padding: '14px 16px',
@@ -422,7 +422,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
                     <span style={{ fontSize: 10, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace', width: 14 }}>
                       {i + 1}
                     </span>
-                    <div style={{ flex: 1, height: 4, background: '#1f2333', borderRadius: 2 }}>
+                    <div style={{ flex: 1, height: 4, background: '#232c47', borderRadius: 2 }}>
                       <div
                         style={{
                           height: '100%',

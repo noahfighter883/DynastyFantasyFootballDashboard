@@ -128,7 +128,7 @@ export default function DraftCapitalChart({ team, mode }: Props) {
         {/* Y-axis gridlines + round labels */}
         {yTicks.map(({ rank, y }) => (
           <g key={rank}>
-            <line x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={y} y2={y} stroke="#1f2333" strokeWidth={1} />
+            <line x1={PADDING_LEFT} x2={WIDTH - PADDING_RIGHT} y1={y} y2={y} stroke="#232c47" strokeWidth={1} />
             <text
               x={PADDING_LEFT - 10}
               y={y}
@@ -270,7 +270,7 @@ export default function DraftCapitalChart({ team, mode }: Props) {
             <span style={{ fontSize: 11, color: '#6b7280' }}>Redraft</span>
           </div>
         )}
-        <div style={{ width: 1, alignSelf: 'stretch', background: '#1f2333' }} />
+        <div style={{ width: 1, alignSelf: 'stretch', background: '#232c47' }} />
         {(Object.keys(POS_COLORS) as Position[]).map((pos) => (
           <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: POS_COLORS[pos] }} />

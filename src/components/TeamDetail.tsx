@@ -63,8 +63,8 @@ function PositionCard({
   const starters = players.filter((p) => p.isStarter)
   const color = POS_COLORS[pos]
   const cardStyle: React.CSSProperties = {
-    background: isActive ? color + '0d' : '#141720',
-    border: '1px solid #1f2333',
+    background: isActive ? color + '0d' : '#131a2b',
+    border: '1px solid #232c47',
     borderTop: `2px solid ${color}`,
     borderRadius: 8,
     padding: '16px 18px',
@@ -78,10 +78,6 @@ function PositionCard({
   let headline: string
   let headlineSub: string
   let barPct: number
-  let leftLabel: string
-  let leftVal: string
-  let rightLabel: string
-  let rightVal: string
   let footerLabel: string
   let footerVal: string
 
@@ -123,10 +119,6 @@ function PositionCard({
 
   headline = fmt(startersVal, startersDisplay)
   headlineSub = metric === 'projected' ? 'avg starter pts' : 'avg starter rank'
-  leftLabel = 'Starters'
-  leftVal = fmt(startersVal, startersDisplay)
-  rightLabel = 'Roster avg'
-  rightVal = fmt(rosterVal, rosterDisplay)
   footerLabel = metric === 'projected' ? 'Full roster avg pts' : 'Full roster avg rank'
   footerVal = fmt(rosterVal, rosterDisplay)
 
@@ -157,17 +149,9 @@ function PositionCard({
       </div>
 
       <div style={{ marginBottom: 12 }}>
-        <div style={{ height: 6, background: '#1f2333', borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
+        <div style={{ height: 6, background: '#232c47', borderRadius: 3, overflow: 'hidden', display: 'flex' }}>
           <div style={{ width: `${barPct}%`, background: color, borderRadius: 3 }} />
           <div style={{ flex: 1, background: color + '33' }} />
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11 }}>
-          <span style={{ color: '#a0a6b8' }}>
-            {leftLabel}: <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#e2e4e9' }}>{leftVal}</span>
-          </span>
-          <span style={{ color: '#a0a6b8' }}>
-            {rightLabel}: <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#e2e4e9' }}>{rightVal}</span>
-          </span>
         </div>
       </div>
 
@@ -176,7 +160,7 @@ function PositionCard({
           style={{
             fontSize: 11,
             color: '#6b7280',
-            background: '#0d0f14',
+            background: '#0a0f1e',
             borderRadius: 5,
             padding: '6px 10px',
             display: 'flex',
@@ -195,7 +179,7 @@ function PositionCard({
         style={{
           fontSize: 11,
           color: '#6b7280',
-          background: '#0d0f14',
+          background: '#0a0f1e',
           borderRadius: 5,
           padding: '6px 10px',
           display: 'flex',
@@ -210,7 +194,7 @@ function PositionCard({
 }
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; sortDir: 'asc' | 'desc' }) {
-  if (col !== sortCol) return <span style={{ color: '#2a2f42', fontSize: 10, marginLeft: 4 }}>⇅</span>
+  if (col !== sortCol) return <span style={{ color: '#2e3a5c', fontSize: 10, marginLeft: 4 }}>⇅</span>
   return <span style={{ color: '#3b82f6', fontSize: 10, marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 }
 
@@ -289,9 +273,9 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
                 fontWeight: 600,
                 padding: '3px 10px',
                 borderRadius: 5,
-                background: '#1e2130',
+                background: '#1c2540',
                 color: '#e2e4e9',
-                border: '1px solid #2a2f42',
+                border: '1px solid #2e3a5c',
                 cursor: 'pointer',
                 fontFamily: 'JetBrains Mono, monospace',
               }}
@@ -310,8 +294,8 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
             <div
               style={{
                 display: 'flex',
-                background: '#141720',
-                border: '1px solid #1f2333',
+                background: '#131a2b',
+                border: '1px solid #232c47',
                 borderRadius: 7,
                 padding: 3,
                 gap: 2,
@@ -326,9 +310,9 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
                     borderRadius: 5,
                     fontSize: 12,
                     fontWeight: metric === m ? 600 : 400,
-                    background: metric === m ? '#1e2130' : 'transparent',
+                    background: metric === m ? '#1c2540' : 'transparent',
                     color: metric === m ? '#e2e4e9' : '#6b7280',
-                    border: metric === m ? '1px solid #2a2f42' : '1px solid transparent',
+                    border: metric === m ? '1px solid #2e3a5c' : '1px solid transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                     textTransform: 'capitalize',
@@ -360,8 +344,8 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
       {cameFrom === 'overview' && (
         <div
           style={{
-            background: '#141720',
-            border: '1px solid #1f2333',
+            background: '#131a2b',
+            border: '1px solid #232c47',
             borderRadius: 10,
             padding: '18px 20px',
             marginBottom: 28,
@@ -377,8 +361,8 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
             <div
               style={{
                 display: 'flex',
-                background: '#0d0f14',
-                border: '1px solid #1f2333',
+                background: '#0a0f1e',
+                border: '1px solid #232c47',
                 borderRadius: 7,
                 padding: 3,
                 gap: 2,
@@ -393,9 +377,9 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
                     borderRadius: 5,
                     fontSize: 12,
                     fontWeight: chartMode === m ? 600 : 400,
-                    background: chartMode === m ? '#1e2130' : 'transparent',
+                    background: chartMode === m ? '#1c2540' : 'transparent',
                     color: chartMode === m ? '#e2e4e9' : '#6b7280',
-                    border: chartMode === m ? '1px solid #2a2f42' : '1px solid transparent',
+                    border: chartMode === m ? '1px solid #2e3a5c' : '1px solid transparent',
                     cursor: 'pointer',
                     transition: 'all 0.15s',
                     textTransform: 'capitalize',
@@ -420,8 +404,8 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
       {/* Player table */}
       <div
         style={{
-          background: '#141720',
-          border: '1px solid #1f2333',
+          background: '#131a2b',
+          border: '1px solid #232c47',
           borderRadius: 10,
           overflow: 'hidden',
         }}
@@ -432,8 +416,8 @@ export default function TeamDetail({ team, onBack, cameFrom = 'overview', initia
             display: 'grid',
             gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 90px',
             padding: '0 16px',
-            borderBottom: '1px solid #1f2333',
-            background: '#0d0f14',
+            borderBottom: '1px solid #232c47',
+            background: '#0a0f1e',
             alignItems: 'center',
           }}
         >
@@ -479,9 +463,9 @@ function PlayerRow({ player, idx, isLast, isPlus1 }: { player: Player; idx: numb
         display: 'grid',
         gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 90px',
         padding: '11px 16px',
-        borderBottom: isLast ? 'none' : '1px solid #1a1d27',
+        borderBottom: isLast ? 'none' : '1px solid #1b2438',
         alignItems: 'center',
-        background: hovered ? '#1a1d27' : 'transparent',
+        background: hovered ? '#1b2438' : 'transparent',
         transition: 'background 0.1s',
       }}
     >

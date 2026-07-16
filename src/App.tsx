@@ -36,13 +36,13 @@ export default function App() {
   return (
     <div
       className="min-h-screen"
-      style={{ background: "#0d0f14", color: "#e2e4e9" }}
+      style={{ background: "#0a0f1e", color: "#e2e4e9" }}
     >
       {/* Top nav */}
       <header
         style={{
-          borderBottom: "1px solid #1f2333",
-          background: "#0d0f14",
+          borderBottom: "1px solid #232c47",
+          background: "#0a0f1e",
           position: "sticky",
           top: 0,
           zIndex: 50,
@@ -107,24 +107,7 @@ export default function App() {
                 gap: 10,
               }}
             >
-              <div
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: 6,
-                  background:
-                    "linear-gradient(135deg, #3b82f6, #6366f1)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontWeight: 700,
-                  color: "#fff",
-                  fontFamily: "JetBrains Mono, monospace",
-                }}
-              >
-                Σ
-              </div>
+             
               <span
                 style={{
                   fontWeight: 600,
@@ -139,10 +122,10 @@ export default function App() {
                   fontSize: 11,
                   fontFamily: "JetBrains Mono, monospace",
                   color: "#6b7280",
-                  background: "#1a1d27",
+                  background: "#1b2438",
                   padding: "2px 6px",
                   borderRadius: 4,
-                  border: "1px solid #1f2333",
+                  border: "1px solid #232c47",
                 }}
               >
                 2026 · 12-Team PPR
@@ -176,7 +159,7 @@ export default function App() {
                   fontSize: 13,
                   fontWeight: screen === id ? 500 : 400,
                   background:
-                    screen === id ? "#1e2130" : "transparent",
+                    screen === id ? "#1c2540" : "transparent",
                   color: screen === id ? "#e2e4e9" : "#6b7280",
                   border: "none",
                   cursor: "pointer",

@@ -178,8 +178,8 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
         <div
           style={{
             display: 'flex',
-            background: '#141720',
-            border: '1px solid #1f2333',
+            background: '#131a2b',
+            border: '1px solid #232c47',
             borderRadius: 7,
             padding: 3,
             gap: 2,
@@ -211,8 +211,8 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
         <div
           style={{
             display: 'flex',
-            background: '#141720',
-            border: '1px solid #1f2333',
+            background: '#131a2b',
+            border: '1px solid #232c47',
             borderRadius: 7,
             padding: 3,
             gap: 2,
@@ -227,9 +227,9 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
                 borderRadius: 5,
                 fontSize: 12,
                 fontWeight: metric === m ? 600 : 400,
-                background: metric === m ? '#1e2130' : 'transparent',
+                background: metric === m ? '#1c2540' : 'transparent',
                 color: metric === m ? '#e2e4e9' : '#6b7280',
-                border: metric === m ? '1px solid #2a2f42' : '1px solid transparent',
+                border: metric === m ? '1px solid #2e3a5c' : '1px solid transparent',
                 cursor: 'pointer',
                 transition: 'all 0.15s',
               }}
@@ -254,8 +254,8 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
       {/* Table */}
       <div
         style={{
-          background: '#141720',
-          border: '1px solid #1f2333',
+          background: '#131a2b',
+          border: '1px solid #232c47',
           borderRadius: 10,
           overflow: 'hidden',
         }}
@@ -266,7 +266,7 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
             display: 'grid',
             gridTemplateColumns: '44px 1fr 140px 260px',
             padding: '10px 20px',
-            borderBottom: '1px solid #1f2333',
+            borderBottom: '1px solid #232c47',
             gap: 16,
             alignItems: 'center',
           }}
@@ -301,14 +301,14 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
                 display: 'grid',
                 gridTemplateColumns: '44px 1fr 140px 260px',
                 padding: '14px 20px',
-                borderBottom: idx < ranked.length - 1 ? '1px solid #1a1d27' : 'none',
+                borderBottom: idx < ranked.length - 1 ? '1px solid #1b2438' : 'none',
                 gap: 16,
                 alignItems: 'center',
                 cursor: 'pointer',
                 transition: 'background 0.12s',
               }}
               onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = '#1a1d27'
+                ;(e.currentTarget as HTMLElement).style.background = '#1b2438'
               }}
               onMouseLeave={(e) => {
                 ;(e.currentTarget as HTMLElement).style.background = 'transparent'
@@ -341,7 +341,7 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
                 <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 500, color: '#e2e4e9' }}>
                   {metric === 'projected' ? val.toFixed(1) : (display ?? val.toFixed(1))}
                 </span>
-                <div style={{ height: 3, background: '#1f2333', borderRadius: 2, width: 110 }}>
+                <div style={{ height: 3, background: '#232c47', borderRadius: 2, width: 110 }}>
                   <div
                     style={{
                       height: '100%',
