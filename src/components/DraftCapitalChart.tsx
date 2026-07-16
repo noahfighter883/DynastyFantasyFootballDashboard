@@ -64,22 +64,17 @@ export default function DraftCapitalChart({ team, mode }: Props) {
     )
   }
 
-  const allRanks = [
-    ...dynastyPlayers.map((p) => p.dynastyOverallRank),
-    ...redraftPlayers.map((p) => p.redraftOverallRank),
-  ]
   // Always start the y-axis at rank 1 (round 1.1), even if this team's best
   // player isn't actually ranked #1 -- keeps every team's chart on the same
   // baseline so they're visually comparable to each other.
   const minRank = 1
 
-  // Size the y-axis to the roster's actual spread, up to the round-24
-  // ceiling -- rather than always jumping straight to that ceiling just
-  // because one or two fallback/unranked players have a very high rank.
-  // Those outliers still get visually pinned to the bottom of the chart,
-  // it's just a more sensible bottom instead of a fixed distant one.
-  const ranksWithinCap = allRanks.filter((r) => r <= MAX_VISUAL_RANK)
-  const cappedMaxRank = ranksWithinCap.length > 0 ? Math.max(...ranksWithinCap) : MAX_VISUAL_RANK
+  // Fixed bottom of the y-axis at round 21.1 (rank 241) for every team, so
+  // all charts share the same scale and are directly comparable. Players
+  // ranked beyond this still get visually pinned to the bottom line, but
+  // their real rank still shows in the tooltip on hover.
+  const FIXED_MAX_RANK = 241
+  const cappedMaxRank = FIXED_MAX_RANK
   const rankSpan = cappedMaxRank - minRank || 1
 
   const maxRoundNum = Math.max(1, Math.ceil(cappedMaxRank / ROUND_SIZE))
@@ -93,8 +88,8 @@ export default function DraftCapitalChart({ team, mode }: Props) {
   const xFor = (i: number) =>
     maxPlayerCount > 1 ? PADDING_LEFT + (i / (maxPlayerCount - 1)) * chartW : PADDING_LEFT + chartW / 2
 
-  // Lower rank (better) plots higher on the chart. Ranks beyond the roster's
-  // real spread are clamped to the bottom line visually, but the real rank
+  // Lower rank (better) plots higher on the chart. Ranks beyond the fixed
+  // ceiling are clamped to the bottom line visually, but the real rank
   // still shows in the tooltip on hover.
   const yFor = (rank: number) => {
     const visualRank = Math.min(rank, cappedMaxRank)
