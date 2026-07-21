@@ -30,7 +30,6 @@ export default function App() {
     setScreen("team");
   };
 
-  const goToOverview = () => setScreen("overview");
   const goBack = () => setScreen(cameFrom);
 
   return (
@@ -205,7 +204,6 @@ export default function App() {
           <TeamDetail
             key={selectedTeam.id}
             team={selectedTeam}
-            onBack={goBack}
             cameFrom={cameFrom}
             initialPosFilter={initialPosFilter}
           />

@@ -23,18 +23,18 @@ function isAscendingMetric(metric: SortMetric): boolean {
 function getMetricValue(team: Team, scope: SortScope, metric: SortMetric): number {
   const t = team.totals.overall
   if (metric === 'dynasty') {
-    if (scope === 'starters') return t.dynastyStartersAvgRank
-    if (scope === 'starters_plus1') return t.dynastyPlus1AvgRank
-    return t.dynastyRosterAvgRank
+    if (scope === 'starters') return t.dynastyStartersAvgRank ?? 0
+    if (scope === 'starters_plus1') return t.dynastyPlus1AvgRank ?? 0
+    return t.dynastyRosterAvgRank ?? 0
   }
   if (metric === 'redraft') {
-    if (scope === 'starters') return t.redraftStartersAvgRank
-    if (scope === 'starters_plus1') return t.redraftPlus1AvgRank
-    return t.redraftRosterAvgRank
+    if (scope === 'starters') return t.redraftStartersAvgRank ?? 0
+    if (scope === 'starters_plus1') return t.redraftPlus1AvgRank ?? 0
+    return t.redraftRosterAvgRank ?? 0
   }
-  if (scope === 'starters') return t.projectedStarters
-  if (scope === 'starters_plus1') return t.projectedPlus1
-  return t.projectedRoster
+  if (scope === 'starters') return t.projectedStarters ?? 0
+  if (scope === 'starters_plus1') return t.projectedPlus1 ?? 0
+  return t.projectedRoster ?? 0
 }
 
 // Round.pick display string (e.g. "3.3") for dynasty/redraft, null for projected points.
@@ -56,18 +56,18 @@ function getMetricDisplay(team: Team, scope: SortScope, metric: SortMetric): str
 function getPosValue(team: Team, pos: Position, scope: SortScope, metric: SortMetric): number {
   const t = team.totals[pos]
   if (metric === 'dynasty') {
-    if (scope === 'starters') return t.dynastyStartersAvgRank
-    if (scope === 'starters_plus1') return t.dynastyPlus1AvgRank
-    return t.dynastyRosterAvgRank
+    if (scope === 'starters') return t.dynastyStartersAvgRank ?? 0
+    if (scope === 'starters_plus1') return t.dynastyPlus1AvgRank ?? 0
+    return t.dynastyRosterAvgRank ?? 0
   }
   if (metric === 'redraft') {
-    if (scope === 'starters') return t.redraftStartersAvgRank
-    if (scope === 'starters_plus1') return t.redraftPlus1AvgRank
-    return t.redraftRosterAvgRank
+    if (scope === 'starters') return t.redraftStartersAvgRank ?? 0
+    if (scope === 'starters_plus1') return t.redraftPlus1AvgRank ?? 0
+    return t.redraftRosterAvgRank ?? 0
   }
-  if (scope === 'starters') return t.projectedStarters
-  if (scope === 'starters_plus1') return t.projectedPlus1
-  return t.projectedRoster
+  if (scope === 'starters') return t.projectedStarters ?? 0
+  if (scope === 'starters_plus1') return t.projectedPlus1 ?? 0
+  return t.projectedRoster ?? 0
 }
 
 function getPosDisplay(team: Team, pos: Position, scope: SortScope, metric: SortMetric): string | null {

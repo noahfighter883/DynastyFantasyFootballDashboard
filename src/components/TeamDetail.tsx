@@ -4,7 +4,6 @@ import DraftCapitalChart from './DraftCapitalChart'
 
 interface Props {
   team: Team
-  onBack: () => void
   cameFrom?: 'overview' | 'position'
   initialPosFilter?: Position | 'ALL'
 }
@@ -198,7 +197,7 @@ function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; s
   return <span style={{ color: '#3b82f6', fontSize: 10, marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 }
 
-export default function TeamDetail({ team, onBack, cameFrom = 'overview', initialPosFilter = 'ALL' }: Props) {
+export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilter = 'ALL' }: Props) {
   const [metric, setMetric] = useState<SortMetric>('dynasty')
   const [sortCol, setSortCol] = useState<SortCol>('isStarter')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')

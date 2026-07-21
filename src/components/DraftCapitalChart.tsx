@@ -33,8 +33,6 @@ const PADDING_RIGHT = 20
 const PADDING_TOP = 26
 const PADDING_BOTTOM = 32
 const ROUND_SIZE = 12
-const MAX_ROUND = 24
-const MAX_VISUAL_RANK = MAX_ROUND * ROUND_SIZE
 
 type SeriesKey = 'dynasty' | 'redraft'
 
