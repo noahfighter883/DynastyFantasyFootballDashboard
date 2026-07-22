@@ -236,6 +236,12 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
             </button>
           ))}
         </div>
+
+        {scope === 'starters_plus1' && (
+          <div style={{ marginLeft: 'auto', fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace' }}>
+            +1 = best bench player added at each of QB, RB, WR, TE
+          </div>
+        )}
       </div>
 
       {/* Section label */}

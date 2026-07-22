@@ -122,6 +122,39 @@ export default function DraftCapitalChart({ team, mode }: Props) {
 
   return (
     <div style={{ position: 'relative' }}>
+      {/* Legend */}
+      <div style={{ display: 'flex', gap: 20, marginBottom: 12, paddingLeft: PADDING_LEFT, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div
+            style={{
+              width: 14,
+              height: 0,
+              borderTop: '1px dashed #374151',
+            }}
+          />
+          <span style={{ fontSize: 11, color: '#6b7280' }}>Ideal (even depth)</span>
+        </div>
+        {showDynasty && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 14, height: 2, background: DYNASTY_LINE_COLOR }} />
+            <span style={{ fontSize: 11, color: '#6b7280' }}>Dynasty</span>
+          </div>
+        )}
+        {showRedraft && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ width: 14, height: 2, background: REDRAFT_LINE_COLOR }} />
+            <span style={{ fontSize: 11, color: '#6b7280' }}>Redraft</span>
+          </div>
+        )}
+        <div style={{ width: 1, alignSelf: 'stretch', background: '#232c47' }} />
+        {(Object.keys(POS_COLORS) as Position[]).map((pos) => (
+          <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: POS_COLORS[pos] }} />
+            <span style={{ fontSize: 11, color: '#6b7280' }}>{pos}</span>
+          </div>
+        ))}
+      </div>
+
       <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
         {/* Y-axis gridlines + round labels */}
         {yTicks.map(({ rank, y }) => (
@@ -243,39 +276,6 @@ export default function DraftCapitalChart({ team, mode }: Props) {
           </div>
         </div>
       )}
-
-      {/* Legend */}
-      <div style={{ display: 'flex', gap: 20, marginTop: 8, paddingLeft: PADDING_LEFT, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <div
-            style={{
-              width: 14,
-              height: 0,
-              borderTop: '1px dashed #374151',
-            }}
-          />
-          <span style={{ fontSize: 11, color: '#6b7280' }}>Ideal (even depth)</span>
-        </div>
-        {showDynasty && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 14, height: 2, background: DYNASTY_LINE_COLOR }} />
-            <span style={{ fontSize: 11, color: '#6b7280' }}>Dynasty</span>
-          </div>
-        )}
-        {showRedraft && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 14, height: 2, background: REDRAFT_LINE_COLOR }} />
-            <span style={{ fontSize: 11, color: '#6b7280' }}>Redraft</span>
-          </div>
-        )}
-        <div style={{ width: 1, alignSelf: 'stretch', background: '#232c47' }} />
-        {(Object.keys(POS_COLORS) as Position[]).map((pos) => (
-          <div key={pos} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-            <div style={{ width: 8, height: 8, borderRadius: '50%', background: POS_COLORS[pos] }} />
-            <span style={{ fontSize: 11, color: '#6b7280' }}>{pos}</span>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
