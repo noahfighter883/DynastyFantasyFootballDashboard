@@ -67,8 +67,9 @@ function PositionCard({
     borderTop: `2px solid ${color}`,
     borderRadius: 8,
     padding: '16px 18px',
-    flex: 1,
+    flex: '1 1 200px',
     minWidth: 200,
+    textAlign: 'left',
     cursor: 'pointer',
     boxShadow: isActive ? `inset 0 0 0 1px ${color}` : 'none',
     transition: 'box-shadow 0.15s, background 0.15s',
@@ -129,7 +130,7 @@ function PositionCard({
   }
 
   return (
-    <div style={cardStyle} onClick={onClick}>
+    <button type="button" style={cardStyle} onClick={onClick} aria-pressed={isActive}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', color, fontFamily: 'JetBrains Mono, monospace' }}>
@@ -188,7 +189,7 @@ function PositionCard({
         <span>{footerLabel}</span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#a0a6b8' }}>{footerVal}</span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -250,6 +251,9 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
     fontFamily: 'JetBrains Mono, monospace',
     padding: '10px 8px',
     whiteSpace: 'nowrap',
+    background: 'transparent',
+    border: 'none',
+    textAlign: 'left',
   })
 
   return (
@@ -257,7 +261,17 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
       {/* Team header */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 700, letterSpacing: '-0.03em' }}>{team.name}</h1>
+          <h1
+            style={{
+              fontFamily: 'Fraunces, serif',
+              fontStyle: 'italic',
+              fontWeight: 600,
+              fontSize: 32,
+              letterSpacing: '-0.01em',
+            }}
+          >
+            {team.name}
+          </h1>
           <span style={{ fontSize: 15, color: '#6b7280' }}>{team.owner}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 4 }}>
@@ -304,6 +318,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
                 <button
                   key={m}
                   onClick={() => setMetric(m)}
+                  aria-pressed={metric === m}
                   style={{
                     padding: '5px 14px',
                     borderRadius: 5,
@@ -371,6 +386,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
                 <button
                   key={m}
                   onClick={() => setChartMode(m)}
+                  aria-pressed={chartMode === m}
                   style={{
                     padding: '5px 14px',
                     borderRadius: 5,
@@ -402,50 +418,52 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
 
       {/* Player table */}
       <div
+        className="table-scroll"
         style={{
           background: '#131a2b',
           border: '1px solid #232c47',
           borderRadius: 10,
-          overflow: 'hidden',
         }}
       >
-        {/* Header row */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 90px',
-            padding: '0 16px',
-            borderBottom: '1px solid #232c47',
-            background: '#0a0f1e',
-            alignItems: 'center',
-          }}
-        >
-          <span style={{ ...headerStyle('isStarter'), padding: '10px 4px' }}>#</span>
-          <span onClick={() => handleSort('name')} style={headerStyle('name')}>
-            PLAYER <SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
-          </span>
-          <span onClick={() => handleSort('position')} style={headerStyle('position')}>
-            POS <SortIcon col="position" sortCol={sortCol} sortDir={sortDir} />
-          </span>
-          <span onClick={() => handleSort('isStarter')} style={headerStyle('isStarter')}>
-            ROLE <SortIcon col="isStarter" sortCol={sortCol} sortDir={sortDir} />
-          </span>
-          <span onClick={() => handleSort('dynastyValue')} style={headerStyle('dynastyValue')}>
-            DYN RK <SortIcon col="dynastyValue" sortCol={sortCol} sortDir={sortDir} />
-          </span>
-          <span onClick={() => handleSort('redraftValue')} style={headerStyle('redraftValue')}>
-            RDR RK <SortIcon col="redraftValue" sortCol={sortCol} sortDir={sortDir} />
-          </span>
-          <span onClick={() => handleSort('projectedPoints')} style={headerStyle('projectedPoints')}>
-            PROJ PTS <SortIcon col="projectedPoints" sortCol={sortCol} sortDir={sortDir} />
-          </span>
-          <span style={{ ...headerStyle('name'), cursor: 'default' }}>ACQ</span>
-        </div>
+        <div style={{ minWidth: 720 }}>
+          {/* Header row */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 90px',
+              padding: '0 16px',
+              borderBottom: '1px solid #232c47',
+              background: '#0a0f1e',
+              alignItems: 'center',
+            }}
+          >
+            <span style={{ ...headerStyle('isStarter'), padding: '10px 4px', cursor: 'default' }}>#</span>
+            <button onClick={() => handleSort('name')} style={headerStyle('name')}>
+              PLAYER <SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
+            </button>
+            <button onClick={() => handleSort('position')} style={headerStyle('position')}>
+              POS <SortIcon col="position" sortCol={sortCol} sortDir={sortDir} />
+            </button>
+            <button onClick={() => handleSort('isStarter')} style={headerStyle('isStarter')}>
+              ROLE <SortIcon col="isStarter" sortCol={sortCol} sortDir={sortDir} />
+            </button>
+            <button onClick={() => handleSort('dynastyValue')} style={headerStyle('dynastyValue')}>
+              DYN RK <SortIcon col="dynastyValue" sortCol={sortCol} sortDir={sortDir} />
+            </button>
+            <button onClick={() => handleSort('redraftValue')} style={headerStyle('redraftValue')}>
+              RDR RK <SortIcon col="redraftValue" sortCol={sortCol} sortDir={sortDir} />
+            </button>
+            <button onClick={() => handleSort('projectedPoints')} style={headerStyle('projectedPoints')}>
+              PROJ PTS <SortIcon col="projectedPoints" sortCol={sortCol} sortDir={sortDir} />
+            </button>
+            <span style={{ ...headerStyle('name'), cursor: 'default' }}>ACQ</span>
+          </div>
 
-        {/* Player rows */}
-        {sorted.map((player, idx) => (
-          <PlayerRow key={player.id} player={player} idx={idx} isLast={idx === sorted.length - 1} isPlus1={plus1Ids.has(player.id)} />
-        ))}
+          {/* Player rows */}
+          {sorted.map((player, idx) => (
+            <PlayerRow key={player.id} player={player} idx={idx} isLast={idx === sorted.length - 1} isPlus1={plus1Ids.has(player.id)} />
+          ))}
+        </div>
       </div>
     </div>
   )

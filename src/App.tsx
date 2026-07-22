@@ -48,18 +48,16 @@ export default function App() {
         }}
       >
         <div
+          className="app-header-grid"
           style={{
             maxWidth: 1400,
             margin: "0 auto",
             padding: "0 24px",
-            height: 52,
-            display: "grid",
-            gridTemplateColumns: "1fr auto 1fr",
-            alignItems: "center",
           }}
         >
           {/* Left column: back button + brand */}
           <div
+            className="app-header-left"
             style={{
               display: "flex",
               alignItems: "center",
@@ -109,14 +107,18 @@ export default function App() {
              
               <span
                 style={{
+                  fontFamily: "Fraunces, serif",
+                  fontStyle: "italic",
                   fontWeight: 600,
-                  fontSize: 15,
-                  letterSpacing: "-0.02em",
+                  fontSize: 17,
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
                 }}
               >
                 DynastyEvaluator
               </span>
               <span
+                className="app-header-badge"
                 style={{
                   fontSize: 11,
                   fontFamily: "JetBrains Mono, monospace",
@@ -125,6 +127,7 @@ export default function App() {
                   padding: "2px 6px",
                   borderRadius: 4,
                   border: "1px solid #232c47",
+                  whiteSpace: "nowrap",
                 }}
               >
                 2026 · 12-Team PPR
@@ -134,10 +137,12 @@ export default function App() {
 
           {/* Center column: nav */}
           <nav
+            className="app-header-nav"
             style={{
               display: "flex",
               gap: 4,
               justifySelf: "center",
+              minWidth: 0,
             }}
           >
             {(
@@ -152,6 +157,7 @@ export default function App() {
               <button
                 key={id}
                 onClick={() => setScreen(id)}
+                aria-current={screen === id ? "page" : undefined}
                 style={{
                   padding: "4px 12px",
                   borderRadius: 5,
@@ -162,6 +168,7 @@ export default function App() {
                   color: screen === id ? "#e2e4e9" : "#6b7280",
                   border: "none",
                   cursor: "pointer",
+                  whiteSpace: "nowrap",
                   transition: "all 0.15s",
                 }}
               >
@@ -172,11 +179,15 @@ export default function App() {
 
           {/* Right column: owner's name on team detail */}
           <div
+            className="app-header-owner"
             style={{
               justifySelf: "end",
               fontSize: 13,
               color: "#e2e4e9",
               fontWeight: 500,
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
           >
             {screen === "team" && selectedTeam
@@ -188,6 +199,8 @@ export default function App() {
 
       {/* Screens */}
       <main
+        key={screen}
+        className="screen-enter"
         style={{
           maxWidth: 1400,
           margin: "0 auto",

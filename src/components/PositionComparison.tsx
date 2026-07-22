@@ -117,7 +117,16 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
     <div>
       {/* Header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 4 }}>
+        <h1
+          style={{
+            fontFamily: 'Fraunces, serif',
+            fontStyle: 'italic',
+            fontWeight: 600,
+            fontSize: 28,
+            letterSpacing: '-0.01em',
+            marginBottom: 4,
+          }}
+        >
           Position Comparison
         </h1>
         <p style={{ color: '#6b7280', fontSize: 13 }}>
@@ -142,6 +151,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
             <button
               key={p}
               onClick={() => setPos(p)}
+              aria-pressed={pos === p}
               style={{
                 padding: '6px 18px',
                 borderRadius: 5,
@@ -176,6 +186,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
             <button
               key={s}
               onClick={() => setScope(s)}
+              aria-pressed={scope === s}
               style={{
                 padding: '5px 14px',
                 borderRadius: 5,
@@ -208,6 +219,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
             <button
               key={m}
               onClick={() => setMetric(m)}
+              aria-pressed={metric === m}
               style={{
                 padding: '5px 14px',
                 borderRadius: 5,
@@ -245,68 +257,76 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
 
       {/* Ranked bars */}
       <div
+        className="table-scroll"
         style={{
           background: '#131a2b',
           border: '1px solid #232c47',
           borderRadius: 10,
-          overflow: 'hidden',
         }}
       >
-        {/* Table header */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '36px 1fr 90px 200px 120px',
-            padding: '10px 20px',
-            borderBottom: '1px solid #232c47',
-            gap: 12,
-            alignItems: 'center',
-            background: '#0a0f1e',
-          }}
-        >
-          {['RK', 'TEAM', 'PLAYERS', 'VALUE BAR', scope === 'starters' ? 'STARTERS' : scope === 'starters_plus1' ? 'STARTERS +1' : 'ROSTER'].map((h) => (
-            <span
-              key={h}
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                color: '#6b7280',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
-              {h}
-            </span>
-          ))}
-        </div>
+        <div style={{ minWidth: 640 }}>
+          {/* Table header */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '36px 1fr 90px 200px 120px',
+              padding: '10px 20px',
+              borderBottom: '1px solid #232c47',
+              gap: 12,
+              alignItems: 'center',
+              background: '#0a0f1e',
+            }}
+          >
+            {['RK', 'TEAM', 'PLAYERS', 'VALUE BAR', scope === 'starters' ? 'STARTERS' : scope === 'starters_plus1' ? 'STARTERS +1' : 'ROSTER'].map((h) => (
+              <span
+                key={h}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  color: '#6b7280',
+                  fontFamily: 'JetBrains Mono, monospace',
+                }}
+              >
+                {h}
+              </span>
+            ))}
+          </div>
 
-        {ranked.map((team, idx) => {
-          const primaryVal = primaryValOf(team)
-          const primaryDisplay =
-            scope === 'starters' ? team.starterDisplay : scope === 'starters_plus1' ? team.plus1Display : team.rosterDisplay
-          const primaryPct = getBarPct(primaryVal)
+          {ranked.map((team, idx) => {
+            const primaryVal = primaryValOf(team)
+            const primaryDisplay =
+              scope === 'starters' ? team.starterDisplay : scope === 'starters_plus1' ? team.plus1Display : team.rosterDisplay
+            const primaryPct = getBarPct(primaryVal)
 
-          return (
-            <div
-              key={team.id}
-              onClick={() => onSelectTeam(team.id, pos)}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '36px 1fr 90px 200px 120px',
-                padding: '14px 20px',
-                borderBottom: idx < ranked.length - 1 ? '1px solid #1b2438' : 'none',
-                gap: 12,
-                alignItems: 'center',
-                cursor: 'pointer',
-                transition: 'background 0.12s',
-              }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = '#1b2438'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
-            >
+            return (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => onSelectTeam(team.id, pos)}
+                className="row-enter"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '36px 1fr 90px 200px 120px',
+                  width: '100%',
+                  padding: '14px 20px',
+                  border: 'none',
+                  borderBottom: idx < ranked.length - 1 ? '1px solid #1b2438' : 'none',
+                  background: 'transparent',
+                  gap: 12,
+                  alignItems: 'center',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'background 0.12s',
+                  animationDelay: `${Math.min(idx, 10) * 20}ms`,
+                }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.background = '#1b2438'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                }}
+              >
               {/* Rank */}
               <div
                 style={{
@@ -353,9 +373,10 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 500, color: '#e2e4e9' }}>
                 {metricFmt(primaryVal, primaryDisplay)}{metricSuffix}
               </div>
-            </div>
-          )
-        })}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* All four positions summary grid */}
@@ -364,7 +385,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
           All Positions Snapshot — {scopeLabel(scope)} ·{' '}
           {metric === 'dynasty' ? 'Dynasty' : metric === 'redraft' ? 'Redraft' : 'Proj. Pts'}
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12 }}>
           {POSITIONS.map((p) => {
             const posRanked = [...teams]
               .map((t) => ({ ...t, val: getVal(t, p, scope, metric) }))
@@ -383,14 +404,20 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
             }
 
             return (
-              <div
+              <button
                 key={p}
+                type="button"
+                disabled={p === pos}
+                aria-pressed={p === pos}
                 style={{
                   background: '#131a2b',
                   border: `1px solid #232c47`,
                   borderTop: `2px solid ${POS_COLORS[p]}`,
                   borderRadius: 8,
                   padding: '14px 16px',
+                  textAlign: 'left',
+                  width: '100%',
+                  opacity: 1,
                   cursor: p !== pos ? 'pointer' : 'default',
                 }}
                 onClick={() => {
@@ -439,7 +466,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
                   </div>
                 ))}
                 <div style={{ fontSize: 10, color: '#374151', marginTop: 4 }}>+ {posRanked.length - 4} more</div>
-              </div>
+              </button>
             )
           })}
         </div>

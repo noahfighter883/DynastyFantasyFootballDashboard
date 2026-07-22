@@ -156,7 +156,16 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
     <div>
       {/* Page header */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', marginBottom: 4 }}>
+        <h1
+          style={{
+            fontFamily: 'Fraunces, serif',
+            fontStyle: 'italic',
+            fontWeight: 600,
+            fontSize: 28,
+            letterSpacing: '-0.01em',
+            marginBottom: 4,
+          }}
+        >
           League Power Rankings
         </h1>
         <p style={{ color: '#6b7280', fontSize: 13 }}>
@@ -189,6 +198,7 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
             <button
               key={s}
               onClick={() => setScope(s)}
+              aria-pressed={scope === s}
               style={{
                 padding: '5px 14px',
                 borderRadius: 5,
@@ -222,6 +232,7 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
             <button
               key={m}
               onClick={() => setMetric(m)}
+              aria-pressed={metric === m}
               style={{
                 padding: '5px 14px',
                 borderRadius: 5,
@@ -253,67 +264,77 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
 
       {/* Table */}
       <div
+        className="table-scroll"
         style={{
           background: '#131a2b',
           border: '1px solid #232c47',
           borderRadius: 10,
-          overflow: 'hidden',
         }}
       >
-        {/* Table header */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '44px 1fr 140px 260px',
-            padding: '10px 20px',
-            borderBottom: '1px solid #232c47',
-            gap: 16,
-            alignItems: 'center',
-          }}
-        >
-          {['RK', 'TEAM / OWNER', metric === 'projected' ? 'AVG PROJ' : 'AVG ADP', 'QB · RB · WR · TE'].map((h) => (
-            <span
-              key={h}
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                color: '#6b7280',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
-              {h}
-            </span>
-          ))}
-        </div>
+        <div style={{ minWidth: 640 }}>
+          {/* Table header */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '44px 1fr 140px 260px',
+              padding: '10px 20px',
+              borderBottom: '1px solid #232c47',
+              gap: 16,
+              alignItems: 'center',
+            }}
+          >
+            {['RK', 'TEAM / OWNER', metric === 'projected' ? 'AVG PROJ' : 'AVG ADP', 'QB · RB · WR · TE'].map((h) => (
+              <span
+                key={h}
+                style={{
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  color: '#6b7280',
+                  fontFamily: 'JetBrains Mono, monospace',
+                }}
+              >
+                {h}
+              </span>
+            ))}
+          </div>
 
-        {/* Rows */}
-        {ranked.map((team, idx) => {
-          const val = getMetricValue(team, scope, metric)
-          const display = getMetricDisplay(team, scope, metric)
-          const barPct = getBarPct(val)
+          {/* Rows */}
+          {ranked.map((team, idx) => {
+            const val = getMetricValue(team, scope, metric)
+            const display = getMetricDisplay(team, scope, metric)
+            const barPct = getBarPct(val)
 
-          return (
-            <div
-              key={team.id}
-              onClick={() => onSelectTeam(team.id)}
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '44px 1fr 140px 260px',
-                padding: '14px 20px',
-                borderBottom: idx < ranked.length - 1 ? '1px solid #1b2438' : 'none',
-                gap: 16,
-                alignItems: 'center',
-                cursor: 'pointer',
-                transition: 'background 0.12s',
-              }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = '#1b2438'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
-            >
+            return (
+              <button
+                key={team.id}
+                type="button"
+                onClick={() => onSelectTeam(team.id)}
+                className="row-enter"
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: '44px 1fr 140px 260px',
+                  width: '100%',
+                  padding: '14px 20px',
+                  borderTop: 'none',
+                  borderLeft: 'none',
+                  borderRight: 'none',
+                  borderBottom: idx < ranked.length - 1 ? '1px solid #1b2438' : 'none',
+                  background: 'transparent',
+                  gap: 16,
+                  alignItems: 'center',
+                  textAlign: 'left',
+                  cursor: 'pointer',
+                  transition: 'background 0.12s',
+                  animationDelay: `${Math.min(idx, 10) * 20}ms`,
+                }}
+                onMouseEnter={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.background = '#1b2438'
+                }}
+                onMouseLeave={(e) => {
+                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                }}
+              >
               {/* Rank */}
               <div
                 style={{
@@ -355,9 +376,10 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
 
               {/* Per-position stats */}
               <PositionMiniStats team={team} scope={scope} metric={metric} />
-            </div>
-          )
-        })}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* Legend */}
