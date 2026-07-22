@@ -62,7 +62,6 @@ export default function App() {
               display: "flex",
               alignItems: "center",
               gap: 20,
-              justifySelf: "start",
               minWidth: 0,
             }}
           >
@@ -82,6 +81,7 @@ export default function App() {
                   padding: 0,
                   fontFamily: "inherit",
                   whiteSpace: "nowrap",
+                  flexShrink: 0,
                   transition: "color 0.15s",
                 }}
                 onMouseEnter={(e) => {
@@ -102,9 +102,9 @@ export default function App() {
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
+                minWidth: 0,
               }}
             >
-             
               <span
                 style={{
                   fontFamily: "Fraunces, serif",
@@ -113,6 +113,7 @@ export default function App() {
                   fontSize: 17,
                   letterSpacing: "-0.01em",
                   whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 DynastyEvaluator
@@ -128,9 +129,12 @@ export default function App() {
                   borderRadius: 4,
                   border: "1px solid #232c47",
                   whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  minWidth: 0,
                 }}
               >
-                2026 · 12-Team PPR
+                2026 · 12-Team PPR · Updated Jul 10, 2026
               </span>
             </div>
           </div>
@@ -181,13 +185,14 @@ export default function App() {
           <div
             className="app-header-owner"
             style={{
-              justifySelf: "end",
+              textAlign: "right",
               fontSize: 13,
               color: "#e2e4e9",
               fontWeight: 500,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
+              minWidth: 0,
             }}
           >
             {screen === "team" && selectedTeam
@@ -228,6 +233,45 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* How it works */}
+      <footer
+        style={{
+          borderTop: "1px solid #232c47",
+          marginTop: 40,
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1400,
+            margin: "0 auto",
+            padding: "20px 24px 32px",
+          }}
+        >
+          <p
+            style={{
+              fontSize: 12,
+              color: "#6b7280",
+              lineHeight: 1.6,
+              maxWidth: 760,
+            }}
+          >
+            <span style={{ color: "#a0a6b8", fontWeight: 600 }}>
+              How scoring works:
+            </span>{" "}
+            team value uses an average-rank system — lower average
+            rank means a stronger team, the same logic as golf
+            scoring — rather than a raw point total, so a team's
+            score reflects player quality regardless of roster
+            size. Values are shown in round.pick notation (e.g.{" "}
+            <span style={{ fontFamily: "JetBrains Mono, monospace" }}>
+              3.3
+            </span>{" "}
+            = the equivalent 3rd-round, 3rd-pick draft slot in a
+            12-team snake draft).
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

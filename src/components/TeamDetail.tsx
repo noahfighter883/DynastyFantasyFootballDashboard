@@ -204,6 +204,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>(initialPosFilter)
   const [chartMode, setChartMode] = useState<'dynasty' | 'redraft' | 'both'>('both')
+  const [view, setView] = useState<'chart' | 'cards'>(cameFrom === 'position' ? 'cards' : 'chart')
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -299,11 +300,52 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
         </div>
       </div>
 
-      {cameFrom === 'position' && (
+      {/* View toggle -- controls whether the chart or the position cards show below, independent of how you navigated here */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>View:</span>
+        <div
+          style={{
+            display: 'flex',
+            background: '#131a2b',
+            border: '1px solid #232c47',
+            borderRadius: 7,
+            padding: 3,
+            gap: 2,
+          }}
+        >
+          {(
+            [
+              { id: 'chart', label: 'Draft Capital Curve' },
+              { id: 'cards', label: 'Position Cards' },
+            ] as { id: 'chart' | 'cards'; label: string }[]
+          ).map(({ id, label }) => (
+            <button
+              key={id}
+              onClick={() => setView(id)}
+              aria-pressed={view === id}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 5,
+                fontSize: 12,
+                fontWeight: view === id ? 600 : 400,
+                background: view === id ? '#3b82f6' : 'transparent',
+                color: view === id ? '#fff' : '#6b7280',
+                border: 'none',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {view === 'cards' && (
         <>
           {/* Metric toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
-            <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Position cards:</span>
+            <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Metric:</span>
             <div
               style={{
                 display: 'flex',
@@ -354,8 +396,8 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
         </>
       )}
 
-      {/* Draft capital curve -- only shown when arriving from League Overview */}
-      {cameFrom === 'overview' && (
+      {/* Draft capital curve */}
+      {view === 'chart' && (
         <div
           style={{
             background: '#131a2b',
