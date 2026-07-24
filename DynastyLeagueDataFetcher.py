@@ -16,6 +16,7 @@ Usage:
     python3 DynastyLeagueDataFetcher.py
 """
 
+import copy
 import csv
 import io
 import json
@@ -37,8 +38,26 @@ def projections_url(season):
     )
 
 
-PLAYERS_CACHE_FILE = "players_cache.json"
+# Vercel's filesystem is read-only except /tmp, so cache there when running
+# as a serverless function (Vercel sets VERCEL=1); use the local dir for the CLI.
+PLAYERS_CACHE_FILE = "/tmp/players_cache.json" if os.environ.get("VERCEL") else "players_cache.json"
 PLAYERS_CACHE_MAX_AGE_HOURS = 24
+
+# In-memory memoization for data that's the same across every league, so a
+# warm serverless instance doesn't re-fetch it (players.json, DynastyProcess
+# CSVs) on every request. Lost on cold start, which is fine -- the /tmp file
+# cache above covers players.json across cold starts too.
+_MEMORY_CACHE = {}
+MEMORY_CACHE_MAX_AGE_SECONDS = 6 * 3600
+
+
+def _cached(key, fetch_fn):
+    entry = _MEMORY_CACHE.get(key)
+    if entry and (time.time() - entry["fetched_at"]) < MEMORY_CACHE_MAX_AGE_SECONDS:
+        return entry["data"]
+    data = fetch_fn()
+    _MEMORY_CACHE[key] = {"data": data, "fetched_at": time.time()}
+    return data
 
 # Fantasy Football Calculator ADP endpoints (free, no auth, official JSON API).
 # "dynasty" = startup dynasty ADP (whole-roster, not rookie-only).
@@ -138,6 +157,14 @@ def get_season_projections(season):
 # ---------------------------------------------------------------------------
 
 def get_redraft_rankings():
+    # Deep-copied because fill_unmatched_with_low_values() mutates whatever
+    # dict it's given -- callers must each get their own copy of the cached
+    # base rankings, or two leagues in the same warm container would corrupt
+    # each other's data.
+    return copy.deepcopy(_cached("redraft_rankings", _fetch_redraft_rankings))
+
+
+def _fetch_redraft_rankings():
     """
     Fetches DynastyProcess's db_fpecr_latest.csv and filters to the
     "redraft-overall" page for overall rank, plus the four position-specific
@@ -206,6 +233,11 @@ def get_redraft_rankings():
 
 
 def get_dynasty_rankings():
+    # See get_redraft_rankings() -- must be a fresh copy per call, same reason.
+    return copy.deepcopy(_cached("dynasty_rankings", _fetch_dynasty_rankings))
+
+
+def _fetch_dynasty_rankings():
     """
     Fetches DynastyProcess's open-data values.csv. Uses "ecr_1qb" (expert
     consensus rank) for overall rank, and "pos" + "ecr_pos" (the file's own
@@ -374,10 +406,20 @@ def build_position_breakdown(players_list, num_teams):
 # Main join
 # ---------------------------------------------------------------------------
 
+class LeagueNotFoundError(Exception):
+    pass
+
+
 def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=DEFAULT_SEASON):
+    # Sleeper returns a bare `null` (not a 404) for an unknown league_id, so
+    # this has to be checked explicitly rather than relying on fetch_json to
+    # raise.
+    settings = get_league_settings(league_id)
+    if not settings:
+        raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+
     rosters = get_rosters(league_id)
     users = get_users(league_id)
-    settings = get_league_settings(league_id)
     players = get_all_players()
     dynasty_adp = get_dynasty_rankings()
     redraft_adp = get_redraft_rankings()

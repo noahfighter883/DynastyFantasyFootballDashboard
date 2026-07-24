@@ -11,3 +11,4 @@ vite.config.*.timestamp-*
 .tmp-*
 joined_league_data.json
 players_cache.json
+__pycache__/

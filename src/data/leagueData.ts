@@ -2,8 +2,9 @@ import type { Team, Player, Position } from '../types'
 
 // Converts an overall rank (or average rank) into standard fantasy draft
 // "round.pick" notation, e.g. 51 -> "5.3" (5th round, 3rd pick),
-// 24 -> "2.12" (2nd round, 12th pick), based on a 12-team snake draft.
-function formatRoundPick(avgRank: number | null, teams = 12): string | null {
+// 24 -> "2.12" (2nd round, 12th pick), based on a snake draft with the
+// league's actual number of teams.
+function formatRoundPick(avgRank: number | null, teams: number): string | null {
   if (avgRank === null) return null
   const roundNum = Math.ceil(avgRank / teams)
   const pickInRound = avgRank - (roundNum - 1) * teams
@@ -26,7 +27,7 @@ function metricSort(
   return [...arr].sort((a, b) => (higherIsBetter ? b[field] - a[field] : a[field] - b[field]))
 }
 
-function computeTotals(players: Player[]) {
+function computeTotals(players: Player[], numTeams: number) {
   const realStarters = players.filter((p) => p.isStarter)
 
   const posGroup = (pos: Position | null, arr: Player[]) =>
@@ -82,17 +83,17 @@ function computeTotals(players: Player[]) {
 
     return {
       dynastyStartersAvgRank,
-      dynastyStartersAvgRankDisplay: formatRoundPick(dynastyStartersAvgRank),
+      dynastyStartersAvgRankDisplay: formatRoundPick(dynastyStartersAvgRank, numTeams),
       dynastyRosterAvgRank,
-      dynastyRosterAvgRankDisplay: formatRoundPick(dynastyRosterAvgRank),
+      dynastyRosterAvgRankDisplay: formatRoundPick(dynastyRosterAvgRank, numTeams),
       dynastyPlus1AvgRank,
-      dynastyPlus1AvgRankDisplay: formatRoundPick(dynastyPlus1AvgRank),
+      dynastyPlus1AvgRankDisplay: formatRoundPick(dynastyPlus1AvgRank, numTeams),
       redraftStartersAvgRank,
-      redraftStartersAvgRankDisplay: formatRoundPick(redraftStartersAvgRank),
+      redraftStartersAvgRankDisplay: formatRoundPick(redraftStartersAvgRank, numTeams),
       redraftRosterAvgRank,
-      redraftRosterAvgRankDisplay: formatRoundPick(redraftRosterAvgRank),
+      redraftRosterAvgRankDisplay: formatRoundPick(redraftRosterAvgRank, numTeams),
       redraftPlus1AvgRank,
-      redraftPlus1AvgRankDisplay: formatRoundPick(redraftPlus1AvgRank),
+      redraftPlus1AvgRankDisplay: formatRoundPick(redraftPlus1AvgRank, numTeams),
       projectedStarters: projectedStartersAvg,
       projectedRoster: projectedRosterAvg,
       projectedPlus1: projectedPlus1Avg,
@@ -475,10 +476,82 @@ const rawTeams = [
   { id: 't12', name: 'timmmimmi', owner: 'timmmimmi', players: t12Players },
 ]
 
-export const LEAGUE: Team[] = rawTeams.map(({ id, name, owner, players }) => ({
+// Sample data from a real 12-team dynasty league, used as a "view a demo"
+// fallback before someone enters their own league.
+export const DEMO_LEAGUE: Team[] = rawTeams.map(({ id, name, owner, players }) => ({
   id,
   name,
   owner,
   players,
-  totals: computeTotals(players),
+  totals: computeTotals(players, 12),
 }))
+
+// ---------------------------------------------------------------------------
+// Live data: transforms the JSON returned by GET /api/league (produced by
+// DynastyLeagueDataFetcher.build_joined_dataset) into the same Team[] shape
+// as DEMO_LEAGUE above, reusing the same aggregation logic.
+// ---------------------------------------------------------------------------
+
+interface ApiPlayer {
+  player_id: string
+  name: string
+  position: string
+  team: string | null
+  is_starter: boolean
+  dynasty_value: number | null
+  dynasty_overall_rank: number | null
+  dynasty_position_rank: number | null
+  redraft_value: number | null
+  redraft_overall_rank: number | null
+  redraft_position_rank: number | null
+  projected_points: number | null
+  projected_position_rank: number | null
+}
+
+interface ApiTeam {
+  roster_id: number
+  owner: string
+  team_name: string
+  players: ApiPlayer[]
+}
+
+export interface ApiLeaguePayload {
+  league_id: string
+  season: string
+  num_teams: number
+  scoring_settings: Record<string, number>
+  teams: ApiTeam[]
+}
+
+function apiPlayerToPlayer(p: ApiPlayer): Player {
+  return {
+    id: p.player_id,
+    name: p.name,
+    position: p.position as Position,
+    nflTeam: p.team ?? 'FA',
+    isStarter: p.is_starter,
+    // Skill-position players always get a fallback ADP entry server-side, so
+    // these are never actually null in practice -- the ?? 0 is just insurance.
+    dynastyValue: p.dynasty_value ?? 0,
+    dynastyOverallRank: p.dynasty_overall_rank ?? 0,
+    dynastyPositionRank: p.dynasty_position_rank,
+    redraftValue: p.redraft_value ?? 0,
+    redraftOverallRank: p.redraft_overall_rank ?? 0,
+    redraftPositionRank: p.redraft_position_rank,
+    projectedPoints: p.projected_points ?? 0,
+    projectedPositionRank: p.projected_position_rank,
+  }
+}
+
+export function buildLeagueFromApiPayload(payload: ApiLeaguePayload): Team[] {
+  return payload.teams.map((t) => {
+    const players = t.players.map(apiPlayerToPlayer)
+    return {
+      id: String(t.roster_id),
+      name: t.team_name,
+      owner: t.owner,
+      players,
+      totals: computeTotals(players, payload.num_teams),
+    }
+  })
+}

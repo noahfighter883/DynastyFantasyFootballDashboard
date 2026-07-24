@@ -1,11 +1,34 @@
-import { useState } from "react";
-import { LEAGUE } from "./data/leagueData";
+import { useEffect, useState } from "react";
+import {
+  DEMO_LEAGUE,
+  buildLeagueFromApiPayload,
+  type ApiLeaguePayload,
+} from "./data/leagueData";
 import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
-import type { Screen, Position } from "./types";
+import LeagueEntry from "./components/LeagueEntry";
+import type { Screen, Position, Team } from "./types";
+
+const LAST_LEAGUE_KEY = "dynastyevaluator:lastLeagueId";
+const DEMO_SEASON = "2026";
+
+// Sleeper league IDs are long numeric snowflakes; pull one out of a pasted
+// URL (e.g. https://sleeper.com/leagues/1312205516633554944/team) or accept
+// it bare.
+function extractLeagueId(input: string): string | null {
+  const match = input.trim().match(/(\d{15,20})/);
+  return match ? match[1] : null;
+}
+
+type LoadState =
+  | { status: "entry" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "ready"; teams: Team[]; season: string; isDemo: boolean };
 
 export default function App() {
+  const [load, setLoad] = useState<LoadState>({ status: "entry" });
   const [screen, setScreen] = useState<Screen>("overview");
   const [selectedTeamId, setSelectedTeamId] = useState<
     string | null
@@ -17,8 +40,78 @@ export default function App() {
     Position | "ALL"
   >("ALL");
 
+  const loadLeague = async (rawInput: string) => {
+    const leagueId = extractLeagueId(rawInput);
+    if (!leagueId) {
+      setLoad({
+        status: "error",
+        message: "Couldn't find a league ID in that -- paste the numeric ID or your league's Sleeper URL.",
+      });
+      return;
+    }
+
+    setLoad({ status: "loading" });
+    try {
+      const res = await fetch(`/api/league?league_id=${encodeURIComponent(leagueId)}`);
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        throw new Error(`The server didn't return a valid response (${res.status}). Try again in a moment.`);
+      }
+      if (!res.ok) {
+        const message = (body as { error?: string } | null)?.error;
+        throw new Error(message || `Request failed (${res.status})`);
+      }
+      const payload = body as ApiLeaguePayload;
+      const teams = buildLeagueFromApiPayload(payload);
+      localStorage.setItem(LAST_LEAGUE_KEY, leagueId);
+      const url = new URL(window.location.href);
+      url.searchParams.set("league_id", leagueId);
+      window.history.replaceState(null, "", url);
+      setScreen("overview");
+      setSelectedTeamId(null);
+      setLoad({ status: "ready", teams, season: payload.season, isDemo: false });
+    } catch (e) {
+      setLoad({
+        status: "error",
+        message: e instanceof Error ? e.message : "Something went wrong loading that league.",
+      });
+    }
+  };
+
+  const viewDemo = () => {
+    setScreen("overview");
+    setSelectedTeamId(null);
+    setLoad({ status: "ready", teams: DEMO_LEAGUE, season: DEMO_SEASON, isDemo: true });
+  };
+
+  const changeLeague = () => setLoad({ status: "entry" });
+
+  // On first load, try the league ID from the URL, then the last one used.
+  useEffect(() => {
+    const fromUrl = new URL(window.location.href).searchParams.get("league_id");
+    const fromStorage = localStorage.getItem(LAST_LEAGUE_KEY);
+    const leagueId = fromUrl || fromStorage;
+    if (leagueId) loadLeague(leagueId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (load.status === "entry" || load.status === "loading" || load.status === "error") {
+    return (
+      <LeagueEntry
+        loading={load.status === "loading"}
+        error={load.status === "error" ? load.message : null}
+        onSubmit={loadLeague}
+        onDemo={viewDemo}
+      />
+    );
+  }
+
+  const { teams, season, isDemo } = load;
+
   const selectedTeam = selectedTeamId
-    ? (LEAGUE.find((t) => t.id === selectedTeamId) ?? null)
+    ? (teams.find((t) => t.id === selectedTeamId) ?? null)
     : null;
 
   const goToTeam = (id: string, pos?: Position) => {
@@ -134,7 +227,7 @@ export default function App() {
                   minWidth: 0,
                 }}
               >
-                2026 · 12-Team PPR · Updated Jul 10, 2026
+                {isDemo ? `Demo League · ${season}` : `${teams.length}-Team League · ${season}`}
               </span>
             </div>
           </div>
@@ -181,10 +274,14 @@ export default function App() {
             ))}
           </nav>
 
-          {/* Right column: owner's name on team detail */}
+          {/* Right column: owner's name on team detail, or a way back to the entry screen */}
           <div
             className="app-header-owner"
             style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 12,
               textAlign: "right",
               fontSize: 13,
               color: "#e2e4e9",
@@ -195,9 +292,23 @@ export default function App() {
               minWidth: 0,
             }}
           >
-            {screen === "team" && selectedTeam
-              ? selectedTeam.owner
-              : null}
+            {screen === "team" && selectedTeam ? selectedTeam.owner : null}
+            <button
+              onClick={changeLeague}
+              style={{
+                fontSize: 12,
+                color: "#6b7280",
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                fontFamily: "inherit",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
+              }}
+            >
+              Change league
+            </button>
           </div>
         </div>
       </header>
@@ -214,7 +325,8 @@ export default function App() {
       >
         {screen === "overview" && (
           <LeagueOverview
-            teams={LEAGUE}
+            teams={teams}
+            season={season}
             onSelectTeam={goToTeam}
           />
         )}
@@ -228,7 +340,7 @@ export default function App() {
         )}
         {screen === "position" && (
           <PositionComparison
-            teams={LEAGUE}
+            teams={teams}
             onSelectTeam={goToTeam}
           />
         )}
@@ -267,8 +379,9 @@ export default function App() {
             <span style={{ fontFamily: "JetBrains Mono, monospace" }}>
               3.3
             </span>{" "}
-            = the equivalent 3rd-round, 3rd-pick draft slot in a
-            12-team snake draft).
+            = the equivalent 3rd-round, 3rd-pick draft slot in a{" "}
+            {teams.length}-team snake draft). Only QB/RB/WR/TE are
+            covered — kickers, defenses, and IDP are ignored.
           </p>
         </div>
       </footer>
