@@ -1,5 +1,8 @@
 """
-Vercel serverless entry point: GET /api/league?league_id=...&season=...
+Vercel serverless entry point: GET /api/league?league_id=...[&season=...]
+
+`season` is optional -- when omitted, build_joined_dataset() derives it from
+the league's own Sleeper settings, which is what every real caller wants.
 
 Thin HTTP wrapper around DynastyLeagueDataFetcher.build_joined_dataset --
 all the actual data fetching/joining logic lives there so the CLI script
@@ -16,7 +19,6 @@ from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from DynastyLeagueDataFetcher import (  # noqa: E402
-    DEFAULT_SEASON,
     LeagueNotFoundError,
     build_joined_dataset,
 )
@@ -31,7 +33,11 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         query = parse_qs(urlparse(self.path).query)
         league_id = (query.get("league_id") or [""])[0].strip()
-        season = (query.get("season") or [DEFAULT_SEASON])[0].strip()
+        # None (not a hardcoded default) so build_joined_dataset falls back
+        # to the league's own reported season instead of always assuming
+        # whatever year this file was written in.
+        season = (query.get("season") or [None])[0]
+        season = season.strip() if season else None
 
         if not league_id:
             self._send_json(400, {"error": "Missing required query param 'league_id'."})

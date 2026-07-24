@@ -410,13 +410,18 @@ class LeagueNotFoundError(Exception):
     pass
 
 
-def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=DEFAULT_SEASON):
+def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
     # Sleeper returns a bare `null` (not a 404) for an unknown league_id, so
     # this has to be checked explicitly rather than relying on fetch_json to
     # raise.
     settings = get_league_settings(league_id)
     if not settings:
         raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+
+    # Every league reports its own season -- trust that over any caller-
+    # supplied default, since a hardcoded season would silently fetch the
+    # wrong year's projections for someone else's league.
+    season = season or settings.get("season") or DEFAULT_SEASON
 
     rosters = get_rosters(league_id)
     users = get_users(league_id)
@@ -586,7 +591,7 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=DEFAULT_SEASON):
     return output, unmatched_value, unmatched_projection
 
 
-def run_cli(league_id=DEFAULT_LEAGUE_ID, season=DEFAULT_SEASON):
+def run_cli(league_id=DEFAULT_LEAGUE_ID, season=None):
     output, unmatched_value, unmatched_projection = build_joined_dataset(league_id, season)
     joined_teams = output["teams"]
     rankings = output["rankings"]
