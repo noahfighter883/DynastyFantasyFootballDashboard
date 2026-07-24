@@ -9,10 +9,14 @@ settings (including TE premium), marks starters vs. bench, and produces:
   - Six team rankings: starters/full-roster x dynasty-value/redraft-value/projected-points
   - A per-position (QB/RB/WR/TE) breakdown for every team
 
+Only QB/RB/WR/TE are covered -- kickers, defenses, and IDP are skipped
+entirely (no ADP/projection source is wired up for them yet).
+
 Usage:
     python3 DynastyLeagueDataFetcher.py
 """
 
+import copy
 import csv
 import io
 import json
@@ -21,17 +25,39 @@ import os
 import time
 import urllib.request
 
-LEAGUE_ID = "1312205516633554944"
-SEASON = "2026"
+DEFAULT_LEAGUE_ID = "1312205516633554944"
+DEFAULT_SEASON = "2026"
 
 SLEEPER_BASE_URL = "https://api.sleeper.app/v1"
-SLEEPER_PROJECTIONS_URL = (
-    f"https://api.sleeper.com/projections/nfl/{SEASON}"
-    "?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE"
-)
 
-PLAYERS_CACHE_FILE = "players_cache.json"
+
+def projections_url(season):
+    return (
+        f"https://api.sleeper.com/projections/nfl/{season}"
+        "?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE"
+    )
+
+
+# Vercel's filesystem is read-only except /tmp, so cache there when running
+# as a serverless function (Vercel sets VERCEL=1); use the local dir for the CLI.
+PLAYERS_CACHE_FILE = "/tmp/players_cache.json" if os.environ.get("VERCEL") else "players_cache.json"
 PLAYERS_CACHE_MAX_AGE_HOURS = 24
+
+# In-memory memoization for data that's the same across every league, so a
+# warm serverless instance doesn't re-fetch it (players.json, DynastyProcess
+# CSVs) on every request. Lost on cold start, which is fine -- the /tmp file
+# cache above covers players.json across cold starts too.
+_MEMORY_CACHE = {}
+MEMORY_CACHE_MAX_AGE_SECONDS = 6 * 3600
+
+
+def _cached(key, fetch_fn):
+    entry = _MEMORY_CACHE.get(key)
+    if entry and (time.time() - entry["fetched_at"]) < MEMORY_CACHE_MAX_AGE_SECONDS:
+        return entry["data"]
+    data = fetch_fn()
+    _MEMORY_CACHE[key] = {"data": data, "fetched_at": time.time()}
+    return data
 
 # Fantasy Football Calculator ADP endpoints (free, no auth, official JSON API).
 # "dynasty" = startup dynasty ADP (whole-roster, not rookie-only).
@@ -81,152 +107,19 @@ def normalize_name(name):
 # Sleeper data
 # ---------------------------------------------------------------------------
 
-def get_rosters():
+def get_rosters(league_id):
     print("Fetching rosters...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/league/{LEAGUE_ID}/rosters")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/rosters")
 
 
-def get_users():
+def get_users(league_id):
     print("Fetching users...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/league/{LEAGUE_ID}/users")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/users")
 
 
-def get_league_settings():
+def get_league_settings(league_id):
     print("Fetching league settings...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/league/{LEAGUE_ID}")
-
-
-def get_league_chain():
-    """
-    Walks backward through previous_league_id to find every season's
-    league_id in this league's full history, oldest first. Sleeper treats
-    each season as a technically separate league, linked this way.
-    """
-    print("Walking league history (previous_league_id chain)...")
-    chain = []
-    current_id = LEAGUE_ID
-    seen = set()
-    while current_id and current_id not in seen:
-        seen.add(current_id)
-        chain.append(current_id)
-        try:
-            league = fetch_json(f"{SLEEPER_BASE_URL}/league/{current_id}")
-        except Exception:
-            break
-        prev = league.get("previous_league_id")
-        if not prev or prev == "0":
-            break
-        current_id = prev
-    chain.reverse()  # oldest first
-    print(f"  -> Found {len(chain)} season(s) in league history.")
-    return chain
-
-
-def get_owner_map_for_league(league_id):
-    """
-    Roster_id -> owner_id (user_id) mapping for one specific season.
-    Roster_id numbering is reassigned independently each season, but
-    owner_id (the actual manager) persists across seasons, so this is
-    the key we track acquisition history against, not roster_id.
-    """
-    try:
-        rosters = fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/rosters")
-    except Exception:
-        return {}
-    return {r.get("roster_id"): r.get("owner_id") for r in rosters if r.get("roster_id") is not None}
-
-
-def get_draft_events_for_league(league_id, owner_map):
-    """Returns a list of draft-pick events for one season, keyed by owner_id."""
-    events = []
-    try:
-        drafts = fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/drafts")
-    except Exception:
-        return events
-
-    for d in drafts:
-        draft_id = d.get("draft_id")
-        try:
-            picks = fetch_json(f"{SLEEPER_BASE_URL}/draft/{draft_id}/picks")
-        except Exception:
-            continue
-        for pick in picks:
-            pid = str(pick.get("player_id"))
-            owner_id = owner_map.get(pick.get("roster_id"))
-            if pid and owner_id:
-                events.append({"type": "draft", "player_id": pid, "owner_id": owner_id, "week": -1})
-    return events
-
-
-def get_transaction_events_for_league(league_id, owner_map, max_week=18):
-    """Returns a list of transaction add-events for one season, keyed by owner_id."""
-    events = []
-    for week in range(1, max_week + 1):
-        try:
-            txns = fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/transactions/{week}")
-        except Exception:
-            continue
-        if not txns:
-            continue
-        for txn in txns:
-            if txn.get("status") != "complete":
-                continue
-            txn_type = txn.get("type")
-            adds = txn.get("adds") or {}
-            for pid, roster_id in adds.items():
-                owner_id = owner_map.get(roster_id)
-                if owner_id:
-                    events.append({"type": txn_type, "player_id": str(pid), "owner_id": owner_id, "week": week})
-    return events
-
-
-def build_acquisition_history():
-    """
-    Walks the full league history (every season) and builds a
-    player_id -> list of chronological acquisition events, each tagged
-    with the owner_id who received the player and how (draft/trade/waiver).
-    """
-    league_chain = get_league_chain()
-
-    all_events = []
-    for season_order, league_id in enumerate(league_chain):
-        owner_map = get_owner_map_for_league(league_id)
-        draft_events = get_draft_events_for_league(league_id, owner_map)
-        txn_events = get_transaction_events_for_league(league_id, owner_map)
-        for e in draft_events + txn_events:
-            e["season_order"] = season_order
-        all_events.extend(draft_events)
-        all_events.extend(txn_events)
-
-    print(f"  -> {len(all_events)} total acquisition events across {len(league_chain)} season(s).")
-
-    player_events = {}
-    for e in all_events:
-        player_events.setdefault(e["player_id"], []).append(e)
-    return player_events
-
-
-def determine_acquisition(pid, owner_id, player_events):
-    """
-    Determines how a player ended up on their CURRENT owner's roster: the
-    most recent event (draft or transaction, across all of league history)
-    that put them there. Returns None if no record exists (e.g. a
-    commissioner-assigned player, or a gap in the historical data).
-    """
-    events = player_events.get(pid, [])
-    matching = [e for e in events if e["owner_id"] == owner_id]
-    if not matching:
-        return None
-
-    matching.sort(key=lambda e: (e["season_order"], e["week"]))
-    latest = matching[-1]
-    if latest["type"] == "draft":
-        return "Drafted"
-    if latest["type"] == "trade":
-        return "Trade"
-    if latest["type"] in ("waiver", "free_agent"):
-        return "Waiver"
-    return "Other"
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}")
 
 
 def get_all_players():
@@ -244,9 +137,9 @@ def get_all_players():
     return players
 
 
-def get_season_projections():
+def get_season_projections(season):
     print("Fetching season-long projections...")
-    data = fetch_json(SLEEPER_PROJECTIONS_URL)
+    data = fetch_json(projections_url(season))
 
     lookup = {}
     for entry in data:
@@ -264,6 +157,14 @@ def get_season_projections():
 # ---------------------------------------------------------------------------
 
 def get_redraft_rankings():
+    # Deep-copied because fill_unmatched_with_low_values() mutates whatever
+    # dict it's given -- callers must each get their own copy of the cached
+    # base rankings, or two leagues in the same warm container would corrupt
+    # each other's data.
+    return copy.deepcopy(_cached("redraft_rankings", _fetch_redraft_rankings))
+
+
+def _fetch_redraft_rankings():
     """
     Fetches DynastyProcess's db_fpecr_latest.csv and filters to the
     "redraft-overall" page for overall rank, plus the four position-specific
@@ -332,6 +233,11 @@ def get_redraft_rankings():
 
 
 def get_dynasty_rankings():
+    # See get_redraft_rankings() -- must be a fresh copy per call, same reason.
+    return copy.deepcopy(_cached("dynasty_rankings", _fetch_dynasty_rankings))
+
+
+def _fetch_dynasty_rankings():
     """
     Fetches DynastyProcess's open-data values.csv. Uses "ecr_1qb" (expert
     consensus rank) for overall rank, and "pos" + "ecr_pos" (the file's own
@@ -464,11 +370,12 @@ def avg_field(players_list, field):
     return round(sum(values) / len(values), 1)
 
 
-def format_round_pick(avg_rank, teams=12):
+def format_round_pick(avg_rank, teams):
     """
     Converts an overall rank (or average rank) into standard fantasy
     draft "round.pick" notation, e.g. 51 -> "5.3" (5th round, 3rd pick),
-    24 -> "2.12" (2nd round, 12th pick), based on a 12-team snake draft.
+    24 -> "2.12" (2nd round, 12th pick), based on a snake draft with
+    this league's actual number of teams.
     """
     if avg_rank is None:
         return None
@@ -478,7 +385,7 @@ def format_round_pick(avg_rank, teams=12):
     return f"{round_num}.{pick_int}"
 
 
-def build_position_breakdown(players_list):
+def build_position_breakdown(players_list, num_teams):
     breakdown = {}
     for pos in SKILL_POSITIONS:
         pos_players = [pl for pl in players_list if pl["position"] == pos]
@@ -487,9 +394,9 @@ def build_position_breakdown(players_list):
         breakdown[pos] = {
             "count": len(pos_players),
             "dynasty_avg_rank": dynasty_avg,
-            "dynasty_avg_rank_display": format_round_pick(dynasty_avg),
+            "dynasty_avg_rank_display": format_round_pick(dynasty_avg, num_teams),
             "redraft_avg_rank": redraft_avg,
-            "redraft_avg_rank_display": format_round_pick(redraft_avg),
+            "redraft_avg_rank_display": format_round_pick(redraft_avg, num_teams),
             "projected_points": avg_field(pos_players, "projected_points"),
         }
     return breakdown
@@ -499,18 +406,32 @@ def build_position_breakdown(players_list):
 # Main join
 # ---------------------------------------------------------------------------
 
-def build_joined_dataset():
-    rosters = get_rosters()
-    users = get_users()
-    settings = get_league_settings()
+class LeagueNotFoundError(Exception):
+    pass
+
+
+def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
+    # Sleeper returns a bare `null` (not a 404) for an unknown league_id, so
+    # this has to be checked explicitly rather than relying on fetch_json to
+    # raise.
+    settings = get_league_settings(league_id)
+    if not settings:
+        raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+
+    # Every league reports its own season -- trust that over any caller-
+    # supplied default, since a hardcoded season would silently fetch the
+    # wrong year's projections for someone else's league.
+    season = season or settings.get("season") or DEFAULT_SEASON
+
+    rosters = get_rosters(league_id)
+    users = get_users(league_id)
     players = get_all_players()
     dynasty_adp = get_dynasty_rankings()
     redraft_adp = get_redraft_rankings()
-    projections = get_season_projections()
-    print("Fetching acquisition history across all seasons...")
-    player_events = build_acquisition_history()
+    projections = get_season_projections(season)
 
     scoring_settings = settings.get("scoring_settings", {})
+    num_teams = len(rosters)
 
     # Collect every skill-position player name across all rosters so we can
     # backfill anyone missing from the ADP data with a fallback low rank.
@@ -548,23 +469,26 @@ def build_joined_dataset():
         player_ids = roster.get("players") or []
         starter_ids = set(roster.get("starters") or [])
 
+        # Kicker/defense/IDP are skipped entirely for now -- no dynasty/redraft
+        # ADP or projection source is wired up for them yet.
         roster_players = []
         for pid in player_ids:
             p = players.get(pid, {})
-            full_name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip() or "Unknown"
             position = p.get("position")
+            if position not in SKILL_POSITIONS:
+                continue
+
+            full_name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip() or "Unknown"
             name_key = normalize_name(full_name)
 
             dynasty_info = dynasty_adp.get(name_key)
             redraft_info = redraft_adp.get(name_key)
             player_stats = projections.get(pid)
             projected_points = compute_projected_points(player_stats, scoring_settings, position)
-            acquisition_type = determine_acquisition(pid, owner_id, player_events)
 
-            is_skill_position = position in SKILL_POSITIONS
-            if dynasty_info is None and redraft_info is None and is_skill_position:
+            if dynasty_info is None and redraft_info is None:
                 unmatched_value.add(full_name)
-            if projected_points is None and is_skill_position:
+            if projected_points is None:
                 unmatched_projection.add(full_name)
 
             roster_players.append({
@@ -581,12 +505,9 @@ def build_joined_dataset():
                 "redraft_position_rank": redraft_info.get("position_rank") if redraft_info else None,
                 "projected_points": projected_points,
                 "projected_position_rank": None,  # filled in after all teams are built
-                "acquisition_type": acquisition_type,
             })
 
         starters = [pl for pl in roster_players if pl["is_starter"]]
-        skill_roster = [pl for pl in roster_players if pl["position"] in SKILL_POSITIONS]
-        skill_starters = [pl for pl in starters if pl["position"] in SKILL_POSITIONS]
 
         starters_dynasty_avg = avg_field(starters, "dynasty_overall_rank")
         starters_redraft_avg = avg_field(starters, "redraft_overall_rank")
@@ -595,14 +516,14 @@ def build_joined_dataset():
 
         team_totals = {
             "starters_dynasty_avg_rank": starters_dynasty_avg,
-            "starters_dynasty_avg_rank_display": format_round_pick(starters_dynasty_avg),
+            "starters_dynasty_avg_rank_display": format_round_pick(starters_dynasty_avg, num_teams),
             "starters_redraft_avg_rank": starters_redraft_avg,
-            "starters_redraft_avg_rank_display": format_round_pick(starters_redraft_avg),
+            "starters_redraft_avg_rank_display": format_round_pick(starters_redraft_avg, num_teams),
             "starters_projected_points": avg_field(starters, "projected_points"),
             "roster_dynasty_avg_rank": roster_dynasty_avg,
-            "roster_dynasty_avg_rank_display": format_round_pick(roster_dynasty_avg),
+            "roster_dynasty_avg_rank_display": format_round_pick(roster_dynasty_avg, num_teams),
             "roster_redraft_avg_rank": roster_redraft_avg,
-            "roster_redraft_avg_rank_display": format_round_pick(roster_redraft_avg),
+            "roster_redraft_avg_rank_display": format_round_pick(roster_redraft_avg, num_teams),
             "roster_projected_points": avg_field(roster_players, "projected_points"),
         }
 
@@ -611,8 +532,8 @@ def build_joined_dataset():
             "owner": owner_info["display_name"],
             "team_name": owner_info["team_name"],
             "totals": team_totals,
-            "position_breakdown_roster": build_position_breakdown(skill_roster),
-            "position_breakdown_starters": build_position_breakdown(skill_starters),
+            "position_breakdown_roster": build_position_breakdown(roster_players, num_teams),
+            "position_breakdown_starters": build_position_breakdown(starters, num_teams),
             "players": roster_players,
         })
 
@@ -660,11 +581,20 @@ def build_joined_dataset():
         ]
 
     output = {
-        "league_id": LEAGUE_ID,
+        "league_id": league_id,
+        "season": season,
+        "num_teams": num_teams,
         "scoring_settings": scoring_settings,
         "teams": joined_teams,
         "rankings": rankings,
     }
+    return output, unmatched_value, unmatched_projection
+
+
+def run_cli(league_id=DEFAULT_LEAGUE_ID, season=None):
+    output, unmatched_value, unmatched_projection = build_joined_dataset(league_id, season)
+    joined_teams = output["teams"]
+    rankings = output["rankings"]
 
     with open("joined_league_data.json", "w") as f:
         json.dump(output, f, indent=2)
@@ -693,4 +623,4 @@ def build_joined_dataset():
 
 
 if __name__ == "__main__":
-    build_joined_dataset()
+    run_cli()

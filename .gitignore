@@ -9,3 +9,6 @@ vite.config.*.timestamp-*
 *-debug.log*
 .claude-replay.*
 .tmp-*
+joined_league_data.json
+players_cache.json
+__pycache__/

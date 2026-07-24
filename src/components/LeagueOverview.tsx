@@ -3,6 +3,7 @@ import type { Team, SortScope, SortMetric, Position } from '../types'
 
 interface Props {
   teams: Team[]
+  season: string
   onSelectTeam: (id: string) => void
 }
 
@@ -121,7 +122,7 @@ const METRIC_LABELS: Record<SortMetric, string> = {
   projected: 'Proj. Points',
 }
 
-export default function LeagueOverview({ teams, onSelectTeam }: Props) {
+export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
   const [scope, setScope] = useState<SortScope>('starters')
   const [metric, setMetric] = useState<SortMetric>('dynasty')
 
@@ -169,7 +170,7 @@ export default function LeagueOverview({ teams, onSelectTeam }: Props) {
           League Power Rankings
         </h1>
         <p style={{ color: '#6b7280', fontSize: 13 }}>
-          12-team dynasty league · 2026 season · click any team to view full roster analysis
+          {teams.length}-team dynasty league · {season} season · click any team to view full roster analysis
         </p>
       </div>
 

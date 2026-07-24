@@ -1,5 +1,4 @@
 export type Position = 'QB' | 'RB' | 'WR' | 'TE'
-export type AcquisitionType = 'Drafted' | 'Trade' | 'Waiver' | 'Other'
 
 export interface Player {
   id: string
@@ -15,7 +14,6 @@ export interface Player {
   redraftPositionRank: number | null
   projectedPoints: number
   projectedPositionRank: number | null
-  acquisitionType: AcquisitionType | null
 }
 
 export interface PositionTotals {
