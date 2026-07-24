@@ -1,0 +1,62 @@
+"""
+Vercel serverless entry point: GET /api/username?username=...[&season=...]
+
+Looks up every Sleeper league a username is in for a season, so the
+frontend can either auto-load the one league found or let the user pick
+between several, instead of requiring a league ID/URL up front.
+"""
+
+import json
+import os
+import sys
+import urllib.error
+from http.server import BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from DynastyLeagueDataFetcher import (  # noqa: E402
+    UserNotFoundError,
+    find_leagues_for_username,
+)
+
+CACHE_CONTROL = "public, s-maxage=1800, stale-while-revalidate=3600"
+
+
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        query = parse_qs(urlparse(self.path).query)
+        username = (query.get("username") or [""])[0].strip()
+        season = (query.get("season") or [None])[0]
+        season = season.strip() if season else None
+
+        if not username:
+            self._send_json(400, {"error": "Missing required query param 'username'."})
+            return
+
+        try:
+            leagues = find_leagues_for_username(username, season)
+        except UserNotFoundError as e:
+            self._send_json(404, {"error": str(e)})
+            return
+        except urllib.error.HTTPError as e:
+            self._send_json(502, {"error": f"Sleeper API error: HTTP {e.code}"})
+            return
+        except urllib.error.URLError as e:
+            self._send_json(502, {"error": f"Could not reach Sleeper API: {e.reason}"})
+            return
+        except Exception as e:
+            self._send_json(500, {"error": f"Unexpected error looking up username: {e}"})
+            return
+
+        self._send_json(200, {"username": username, "leagues": leagues}, cache=True)
+
+    def _send_json(self, status, payload, cache=False):
+        body = json.dumps(payload).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        if cache:
+            self.send_header("Cache-Control", CACHE_CONTROL)
+        self.end_headers()
+        self.wfile.write(body)

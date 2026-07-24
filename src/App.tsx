@@ -8,6 +8,7 @@ import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
 import LeagueEntry from "./components/LeagueEntry";
+import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
 import type { Screen, Position, Team } from "./types";
 
 const LAST_LEAGUE_KEY = "dynastyevaluator:lastLeagueId";
@@ -24,6 +25,7 @@ function extractLeagueId(input: string): string | null {
 type LoadState =
   | { status: "entry" }
   | { status: "loading" }
+  | { status: "picking"; username: string; leagues: LeagueSummary[] }
   | { status: "error"; message: string }
   | { status: "ready"; teams: Team[]; season: string; isDemo: boolean };
 
@@ -40,30 +42,29 @@ export default function App() {
     Position | "ALL"
   >("ALL");
 
-  const loadLeague = async (rawInput: string) => {
-    const leagueId = extractLeagueId(rawInput);
-    if (!leagueId) {
-      setLoad({
-        status: "error",
-        message: "Couldn't find a league ID in that -- paste the numeric ID or your league's Sleeper URL.",
-      });
-      return;
+  // Fetches a JSON API response, treating a non-JSON body (e.g. a gateway
+  // error page) as its own distinct failure rather than an unreadable crash.
+  const fetchJson = async (path: string): Promise<unknown> => {
+    const res = await fetch(path);
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      throw new Error(`The server didn't return a valid response (${res.status}). Try again in a moment.`);
     }
+    if (!res.ok) {
+      const message = (body as { error?: string } | null)?.error;
+      throw new Error(message || `Request failed (${res.status})`);
+    }
+    return body;
+  };
 
+  const loadLeagueById = async (leagueId: string) => {
     setLoad({ status: "loading" });
     try {
-      const res = await fetch(`/api/league?league_id=${encodeURIComponent(leagueId)}`);
-      let body: unknown;
-      try {
-        body = await res.json();
-      } catch {
-        throw new Error(`The server didn't return a valid response (${res.status}). Try again in a moment.`);
-      }
-      if (!res.ok) {
-        const message = (body as { error?: string } | null)?.error;
-        throw new Error(message || `Request failed (${res.status})`);
-      }
-      const payload = body as ApiLeaguePayload;
+      const payload = (await fetchJson(
+        `/api/league?league_id=${encodeURIComponent(leagueId)}`
+      )) as ApiLeaguePayload;
       const teams = buildLeagueFromApiPayload(payload);
       localStorage.setItem(LAST_LEAGUE_KEY, leagueId);
       const url = new URL(window.location.href);
@@ -80,6 +81,43 @@ export default function App() {
     }
   };
 
+  const loadByUsername = async (username: string) => {
+    setLoad({ status: "loading" });
+    try {
+      const body = (await fetchJson(`/api/username?username=${encodeURIComponent(username)}`)) as {
+        leagues: LeagueSummary[];
+      };
+      if (body.leagues.length === 0) {
+        setLoad({ status: "error", message: `No Sleeper leagues found for username '${username}'.` });
+      } else if (body.leagues.length === 1) {
+        await loadLeagueById(body.leagues[0].league_id);
+      } else {
+        setLoad({ status: "picking", username, leagues: body.leagues });
+      }
+    } catch (e) {
+      setLoad({
+        status: "error",
+        message: e instanceof Error ? e.message : "Something went wrong looking up that username.",
+      });
+    }
+  };
+
+  // A league ID/URL goes straight to that league; anything else is treated
+  // as a Sleeper username and looked up instead.
+  const loadLeague = async (rawInput: string) => {
+    const leagueId = extractLeagueId(rawInput);
+    if (leagueId) {
+      await loadLeagueById(leagueId);
+      return;
+    }
+    const username = rawInput.trim();
+    if (!username) {
+      setLoad({ status: "error", message: "Enter a league ID/URL or your Sleeper username." });
+      return;
+    }
+    await loadByUsername(username);
+  };
+
   const viewDemo = () => {
     setScreen("overview");
     setSelectedTeamId(null);
@@ -93,9 +131,21 @@ export default function App() {
     const fromUrl = new URL(window.location.href).searchParams.get("league_id");
     const fromStorage = localStorage.getItem(LAST_LEAGUE_KEY);
     const leagueId = fromUrl || fromStorage;
-    if (leagueId) loadLeague(leagueId);
+    if (leagueId) loadLeagueById(leagueId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  if (load.status === "picking") {
+    return (
+      <LeaguePicker
+        username={load.username}
+        leagues={load.leagues}
+        loading={false}
+        onSelect={loadLeagueById}
+        onBack={changeLeague}
+      />
+    );
+  }
 
   if (load.status === "entry" || load.status === "loading" || load.status === "error") {
     return (
