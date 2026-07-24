@@ -472,7 +472,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 90px',
+              gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px',
               padding: '0 16px',
               borderBottom: '1px solid #232c47',
               background: '#0a0f1e',
@@ -498,7 +498,6 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
             <button onClick={() => handleSort('projectedPoints')} style={headerStyle('projectedPoints')}>
               PROJ PTS <SortIcon col="projectedPoints" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <span style={{ ...headerStyle('name'), cursor: 'default' }}>ACQ</span>
           </div>
 
           {/* Player rows */}
@@ -602,32 +601,6 @@ function PlayerRow({ player, idx, isLast, isPlus1 }: { player: Player; idx: numb
           </div>
         )}
       </div>
-
-      {/* Acquisition type */}
-      <div>
-        {player.acquisitionType && (
-          <span
-            style={{
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: '0.03em',
-              padding: '2px 7px',
-              borderRadius: 4,
-              fontFamily: 'JetBrains Mono, monospace',
-              ...acquisitionStyle(player.acquisitionType),
-            }}
-          >
-            {player.acquisitionType}
-          </span>
-        )}
-      </div>
     </div>
   )
-}
-
-function acquisitionStyle(type: 'Drafted' | 'Trade' | 'Waiver' | 'Other'): { color: string; background: string } {
-  if (type === 'Drafted') return { color: '#818cf8', background: 'rgba(129,140,248,0.1)' }
-  if (type === 'Trade') return { color: '#fb923c', background: 'rgba(251,146,60,0.1)' }
-  if (type === 'Waiver') return { color: '#34d399', background: 'rgba(52,211,153,0.08)' }
-  return { color: '#6b7280', background: 'rgba(107,114,128,0.1)' }
 }
