@@ -122,6 +122,43 @@ def get_league_settings(league_id):
     return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}")
 
 
+class UserNotFoundError(Exception):
+    pass
+
+
+def get_user_by_username(username):
+    print(f"Looking up Sleeper user '{username}'...")
+    return fetch_json(f"{SLEEPER_BASE_URL}/user/{username}")
+
+
+def get_leagues_for_user(user_id, season):
+    return fetch_json(f"{SLEEPER_BASE_URL}/user/{user_id}/leagues/nfl/{season}")
+
+
+def find_leagues_for_username(username, season=None):
+    """
+    Looks up every league a Sleeper username is in for a given season.
+    Sleeper returns a bare `null` (not a 404) for an unknown username, same
+    as it does for an unknown league_id, so that has to be checked
+    explicitly too.
+    """
+    season = season or DEFAULT_SEASON
+    user = get_user_by_username(username)
+    if not user:
+        raise UserNotFoundError(f"No Sleeper user found with username '{username}'.")
+
+    leagues = get_leagues_for_user(user["user_id"], season)
+    return [
+        {
+            "league_id": league["league_id"],
+            "name": league.get("name") or "Untitled League",
+            "season": league.get("season") or season,
+            "total_rosters": league.get("total_rosters"),
+        }
+        for league in leagues
+    ]
+
+
 def get_all_players():
     if os.path.exists(PLAYERS_CACHE_FILE):
         age_hours = (time.time() - os.path.getmtime(PLAYERS_CACHE_FILE)) / 3600

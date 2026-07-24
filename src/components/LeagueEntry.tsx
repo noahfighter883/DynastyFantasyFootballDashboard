@@ -43,15 +43,15 @@ export default function LeagueEntry({ loading, error, onSubmit, onDemo }: Props)
           DynastyEvaluator
         </h1>
         <p style={{ color: '#6b7280', fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 1.6 }}>
-          Paste your Sleeper dynasty league's ID or URL to generate power rankings,
-          position breakdowns, and a draft capital curve for every team.
+          Enter your Sleeper username, or paste your dynasty league's ID or URL, to
+          generate power rankings, position breakdowns, and a draft capital curve for every team.
         </p>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             value={value}
             onChange={(e) => setValue(e.target.value)}
-            placeholder="League ID or https://sleeper.com/leagues/..."
+            placeholder="Sleeper username, league ID, or league URL"
             disabled={loading}
             style={{
               background: '#131a2b',

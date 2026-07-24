@@ -4,15 +4,13 @@ A dynasty fantasy football analytics dashboard that answers the question every d
 
 **[Live app →](https://dynasty-fantasy-football-dashboard.vercel.app/)**
 
-> This branch (`multi-league-support`) adds the ability for **anyone to paste their own Sleeper league ID or URL** and get the same dashboard for their league, via a live `/api/league` endpoint, rather than the tool only working for one hardcoded league. Not yet merged to `main`.
-
-Paste any Sleeper dynasty league's ID or URL to compare all of that league's teams across three lenses: long-term dynasty value, this-year redraft value, and projected points. Only QB/RB/WR/TE are covered for now — kickers, defenses, and IDP are ignored.
+Enter your Sleeper username, or paste any Sleeper dynasty league's ID or URL, to compare all of that league's teams across three lenses: long-term dynasty value, this-year redraft value, and projected points. Only QB/RB/WR/TE are covered for now — kickers, defenses, and IDP are ignored.
 
 ---
 
 ## Features
 
-- **Bring your own league** — enter a Sleeper league ID or URL and the dashboard generates itself for that league; a demo league is available if you just want to look around first
+- **Bring your own league** — enter your Sleeper username (you'll get a picker if you're in more than one league), or a league ID/URL directly, and the dashboard generates itself; a demo league is available if you just want to look around first
 - **League Overview** — every team ranked against each other, toggleable by dynasty value, redraft value, or projected points, and by starters, "starters +1," or full roster
 - **Position Comparison** — isolate a single position (QB/RB/WR/TE) and rank every team's strength at just that spot
 - **Team Detail** — full roster breakdown, position-by-position cards, and a custom **Draft Capital Curve** chart plotting every player's dynasty and redraft rank, sorted best to worst
@@ -20,7 +18,7 @@ Paste any Sleeper dynasty league's ID or URL to compare all of that league's tea
 
 ## How it works
 
-A Python pipeline (`DynastyLeagueDataFetcher.py`) pulls and joins data from several sources, callable either as a CLI script (writes `joined_league_data.json`) or as the `GET /api/league?league_id=...` Vercel serverless function the frontend calls live:
+A Python pipeline (`DynastyLeagueDataFetcher.py`) pulls and joins data from several sources, callable either as a CLI script (writes `joined_league_data.json`) or via two Vercel serverless functions the frontend calls live: `GET /api/league?league_id=...` for a known league, and `GET /api/username?username=...` to look up every league a Sleeper username is in (used when you don't have the league ID handy).
 
 - **[Sleeper API](https://docs.sleeper.com/)** — live rosters, starters, and league scoring settings for whatever league ID is requested; no login or API key needed, Sleeper league data is public by ID
 - **[DynastyProcess](https://github.com/dynastyprocess/data)** — open dynasty and redraft player rankings, including positional ranks
