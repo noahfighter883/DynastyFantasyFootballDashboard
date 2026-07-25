@@ -19,6 +19,7 @@ from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from DynastyLeagueDataFetcher import (  # noqa: E402
+    InvalidInputError,
     LeagueNotFoundError,
     build_joined_dataset,
 )
@@ -42,12 +43,12 @@ class handler(BaseHTTPRequestHandler):
         if not league_id:
             self._send_json(400, {"error": "Missing required query param 'league_id'."})
             return
-        if not league_id.isdigit():
-            self._send_json(400, {"error": "'league_id' should be the numeric Sleeper league ID."})
-            return
 
         try:
             data, unmatched_value, unmatched_projection = build_joined_dataset(league_id, season)
+        except InvalidInputError as e:
+            self._send_json(400, {"error": str(e)})
+            return
         except LeagueNotFoundError as e:
             self._send_json(404, {"error": str(e)})
             return
@@ -61,7 +62,11 @@ class handler(BaseHTTPRequestHandler):
             self._send_json(502, {"error": f"Could not reach Sleeper API: {e.reason}"})
             return
         except Exception as e:
-            self._send_json(500, {"error": f"Unexpected error building league data: {e}"})
+            # Logged server-side (Vercel captures stdout/stderr in function
+            # logs) but not reflected to the client, which could otherwise
+            # leak internal details (paths, module names) for no benefit.
+            print(f"Unexpected error building league data for league_id={league_id!r}: {e}")
+            self._send_json(500, {"error": "Unexpected error building league data. Please try again."})
             return
 
         data["unmatched_value_names"] = sorted(unmatched_value)
@@ -73,7 +78,8 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        if cache:
-            self.send_header("Cache-Control", CACHE_CONTROL)
+        # Explicit either way -- a transient failure (e.g. Sleeper being
+        # briefly down) must never get cached and served to other users.
+        self.send_header("Cache-Control", CACHE_CONTROL if cache else "no-store")
         self.end_headers()
         self.wfile.write(body)
