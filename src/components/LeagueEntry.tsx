@@ -42,6 +42,11 @@ export default function LeagueEntry({ loading, error, onSubmit, onDemo }: Props)
         >
           DynastyEvaluator
         </h1>
+        <p style={{ color: '#a0a6b8', fontSize: 15, textAlign: 'center', marginBottom: 12, lineHeight: 1.5 }}>
+          A dynasty fantasy football analytics dashboard that answers the question every
+          dynasty manager eventually asks: if my league re-drafted from scratch today, how
+          would every team actually stack up?
+        </p>
         <p style={{ color: '#6b7280', fontSize: 14, textAlign: 'center', marginBottom: 32, lineHeight: 1.6 }}>
           Enter your Sleeper username, or paste your dynasty league's ID or URL, to
           generate power rankings, position breakdowns, and a draft capital curve for every team.
