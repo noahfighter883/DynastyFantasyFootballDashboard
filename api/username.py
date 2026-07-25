@@ -16,6 +16,7 @@ from urllib.parse import urlparse, parse_qs
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from DynastyLeagueDataFetcher import (  # noqa: E402
+    InvalidInputError,
     UserNotFoundError,
     find_leagues_for_username,
 )
@@ -36,6 +37,9 @@ class handler(BaseHTTPRequestHandler):
 
         try:
             leagues = find_leagues_for_username(username, season)
+        except InvalidInputError as e:
+            self._send_json(400, {"error": str(e)})
+            return
         except UserNotFoundError as e:
             self._send_json(404, {"error": str(e)})
             return
@@ -46,7 +50,8 @@ class handler(BaseHTTPRequestHandler):
             self._send_json(502, {"error": f"Could not reach Sleeper API: {e.reason}"})
             return
         except Exception as e:
-            self._send_json(500, {"error": f"Unexpected error looking up username: {e}"})
+            print(f"Unexpected error looking up username={username!r}: {e}")
+            self._send_json(500, {"error": "Unexpected error looking up username. Please try again."})
             return
 
         self._send_json(200, {"username": username, "leagues": leagues}, cache=True)
@@ -56,7 +61,8 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        if cache:
-            self.send_header("Cache-Control", CACHE_CONTROL)
+        # Explicit either way -- a transient failure must never get cached
+        # and served to other users.
+        self.send_header("Cache-Control", CACHE_CONTROL if cache else "no-store")
         self.end_headers()
         self.wfile.write(body)

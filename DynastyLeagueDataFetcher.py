@@ -22,7 +22,9 @@ import io
 import json
 import math
 import os
+import re
 import time
+import urllib.parse
 import urllib.request
 
 DEFAULT_LEAGUE_ID = "1312205516633554944"
@@ -30,10 +32,50 @@ DEFAULT_SEASON = "2026"
 
 SLEEPER_BASE_URL = "https://api.sleeper.app/v1"
 
+# Every value below reaches an outbound URL we build ourselves, so it's
+# validated against a strict ASCII allowlist before use -- not just to
+# reject garbage input, but because Python's str.isdigit()/str.isalnum()
+# also accept non-ASCII "digit"/"letter" characters, which is a looser bar
+# than it looks. urllib.parse.quote() is then applied as defense-in-depth
+# on top of the allowlist, not instead of it.
+LEAGUE_ID_RE = re.compile(r"^[0-9]{1,25}$")
+# Sleeper doesn't publish an exact username charset, so this is deliberately
+# a bit loose (not the sole defense -- _urlsafe() below percent-encodes
+# whatever gets through regardless) rather than risk false-rejecting a real
+# username that happens to contain a period or hyphen.
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{1,50}$")
+SEASON_RE = re.compile(r"^[0-9]{4}$")
+
+
+def _urlsafe(value):
+    return urllib.parse.quote(str(value), safe="")
+
+
+class InvalidInputError(Exception):
+    pass
+
+
+def validate_league_id(league_id):
+    if not league_id or not LEAGUE_ID_RE.match(str(league_id)):
+        raise InvalidInputError("'league_id' should be the numeric Sleeper league ID.")
+    return league_id
+
+
+def validate_username(username):
+    if not username or not USERNAME_RE.match(str(username)):
+        raise InvalidInputError("'username' should be a Sleeper username (letters, numbers, underscore).")
+    return username
+
+
+def validate_season(season):
+    if season is not None and not SEASON_RE.match(str(season)):
+        raise InvalidInputError("'season' should be a 4-digit year.")
+    return season
+
 
 def projections_url(season):
     return (
-        f"https://api.sleeper.com/projections/nfl/{season}"
+        f"https://api.sleeper.com/projections/nfl/{_urlsafe(season)}"
         "?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE"
     )
 
@@ -109,17 +151,17 @@ def normalize_name(name):
 
 def get_rosters(league_id):
     print("Fetching rosters...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/rosters")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/rosters")
 
 
 def get_users(league_id):
     print("Fetching users...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}/users")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/users")
 
 
 def get_league_settings(league_id):
     print("Fetching league settings...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/league/{league_id}")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}")
 
 
 class UserNotFoundError(Exception):
@@ -128,11 +170,11 @@ class UserNotFoundError(Exception):
 
 def get_user_by_username(username):
     print(f"Looking up Sleeper user '{username}'...")
-    return fetch_json(f"{SLEEPER_BASE_URL}/user/{username}")
+    return fetch_json(f"{SLEEPER_BASE_URL}/user/{_urlsafe(username)}")
 
 
 def get_leagues_for_user(user_id, season):
-    return fetch_json(f"{SLEEPER_BASE_URL}/user/{user_id}/leagues/nfl/{season}")
+    return fetch_json(f"{SLEEPER_BASE_URL}/user/{_urlsafe(user_id)}/leagues/nfl/{_urlsafe(season)}")
 
 
 def find_leagues_for_username(username, season=None):
@@ -142,6 +184,8 @@ def find_leagues_for_username(username, season=None):
     as it does for an unknown league_id, so that has to be checked
     explicitly too.
     """
+    validate_username(username)
+    validate_season(season)
     season = season or DEFAULT_SEASON
     user = get_user_by_username(username)
     if not user:
@@ -448,6 +492,9 @@ class LeagueNotFoundError(Exception):
 
 
 def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
+    validate_league_id(league_id)
+    validate_season(season)
+
     # Sleeper returns a bare `null` (not a 404) for an unknown league_id, so
     # this has to be checked explicitly rather than relying on fetch_json to
     # raise.
