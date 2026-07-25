@@ -519,7 +519,7 @@ function PlayerRow({ player, idx, isLast, isPlus1 }: { player: Player; idx: numb
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'grid',
-        gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 90px',
+        gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px',
         padding: '11px 16px',
         borderBottom: isLast ? 'none' : '1px solid #1b2438',
         alignItems: 'center',
