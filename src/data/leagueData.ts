@@ -33,13 +33,13 @@ function computeTotals(players: Player[], numTeams: number) {
   const posGroup = (pos: Position | null, arr: Player[]) =>
     pos ? arr.filter((p) => p.position === pos) : arr
 
-  const slotCounts: Record<Position, number> = {
-    QB: posGroup('QB', realStarters).length,
-    RB: posGroup('RB', realStarters).length,
-    WR: posGroup('WR', realStarters).length,
-    TE: posGroup('TE', realStarters).length,
-  }
-
+  // "Starters" are always each team's real actual starters (from Sleeper),
+  // never re-picked by metric -- only which single BENCH player counts as
+  // "+1" changes depending on the value lens being viewed. Re-ranking
+  // everyone (starters included) by metric here previously let a real
+  // starter get bumped into the "+1" slot whenever a bench player scored
+  // higher, which both misrepresented "Starters Only" and could hide the
+  // actual best bench player entirely.
   const dynamicGroups = (
     pos: Position | null,
     field: 'dynastyOverallRank' | 'redraftOverallRank' | 'projectedPoints',
@@ -49,9 +49,10 @@ function computeTotals(players: Player[], numTeams: number) {
     const starters: Player[] = []
     const plus1: Player[] = []
     for (const p of positionsToCheck) {
-      const sorted = metricSort(posGroup(p, players), field, higherIsBetter)
-      starters.push(...sorted.slice(0, slotCounts[p]))
-      if (sorted.length > slotCounts[p]) plus1.push(sorted[slotCounts[p]])
+      starters.push(...posGroup(p, realStarters))
+      const bench = posGroup(p, players).filter((pl) => !pl.isStarter)
+      const sortedBench = metricSort(bench, field, higherIsBetter)
+      if (sortedBench.length > 0) plus1.push(sortedBench[0])
     }
     return { starters, plus1 }
   }

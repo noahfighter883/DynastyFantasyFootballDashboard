@@ -26,15 +26,19 @@ function metricSort(
   return [...arr].sort((a, b) => (higherIsBetter ? b[field] - a[field] : a[field] - b[field]))
 }
 
+// "Starters" are always the real actual starters -- only the single best
+// BENCH player re-selects depending on the metric. See the matching note
+// in leagueData.ts's dynamicGroups() for why re-ranking everyone (starters
+// included) by metric was wrong: it could bump a real starter into the
+// "+1" slot and hide the actual best bench player.
 function dynamicStartersAndPlus1(
   allAtPos: Player[],
-  numSlots: number,
   field: 'dynastyOverallRank' | 'redraftOverallRank' | 'projectedPoints',
   higherIsBetter: boolean
 ): { starters: Player[]; plus1: Player | null } {
-  const sorted = metricSort(allAtPos, field, higherIsBetter)
-  const starters = sorted.slice(0, numSlots)
-  const plus1 = sorted.length > numSlots ? sorted[numSlots] : null
+  const starters = allAtPos.filter((p) => p.isStarter)
+  const bench = metricSort(allAtPos.filter((p) => !p.isStarter), field, higherIsBetter)
+  const plus1 = bench.length > 0 ? bench[0] : null
   return { starters, plus1 }
 }
 
@@ -112,8 +116,7 @@ function PositionCard({
     plus1Val = t.projectedPlus1
   }
 
-  const realSlotsAtPos = starters.length
-  const { plus1: plus1Player } = dynamicStartersAndPlus1(players, realSlotsAtPos, field, higherIsBetter)
+  const { plus1: plus1Player } = dynamicStartersAndPlus1(players, field, higherIsBetter)
 
   const fmt = (v: number | null, d: string | null) => d ?? v?.toFixed(1) ?? '—'
 
@@ -235,8 +238,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
     const ids = new Set<string>()
     for (const pos of POSITIONS) {
       const allAtPos = team.players.filter((p) => p.position === pos)
-      const realSlots = allAtPos.filter((p) => p.isStarter).length
-      const { plus1 } = dynamicStartersAndPlus1(allAtPos, realSlots, field, higherIsBetter)
+      const { plus1 } = dynamicStartersAndPlus1(allAtPos, field, higherIsBetter)
       if (plus1) ids.add(plus1.id)
     }
     return ids
