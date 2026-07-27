@@ -7,6 +7,7 @@ import {
 import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
+import FeasibilityComparison from "./components/FeasibilityComparison";
 import LeagueEntry from "./components/LeagueEntry";
 import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
 import type { Screen, Position, Team } from "./types";
@@ -36,7 +37,7 @@ export default function App() {
     string | null
   >(null);
   const [cameFrom, setCameFrom] = useState<
-    "overview" | "position"
+    "overview" | "position" | "feasibility"
   >("overview");
   const [initialPosFilter, setInitialPosFilter] = useState<
     Position | "ALL"
@@ -166,7 +167,7 @@ export default function App() {
 
   const goToTeam = (id: string, pos?: Position) => {
     setCameFrom(
-      screen === "position" ? "position" : "overview",
+      screen === "position" || screen === "feasibility" ? screen : "overview",
     );
     setInitialPosFilter(pos ?? "ALL");
     setSelectedTeamId(id);
@@ -299,6 +300,10 @@ export default function App() {
                   id: "position",
                   label: "Position Comparison",
                 },
+                {
+                  id: "feasibility",
+                  label: "Feasibility",
+                },
               ] as { id: Screen; label: string }[]
             ).map(({ id, label }) => (
               <button
@@ -390,6 +395,12 @@ export default function App() {
         )}
         {screen === "position" && (
           <PositionComparison
+            teams={teams}
+            onSelectTeam={goToTeam}
+          />
+        )}
+        {screen === "feasibility" && (
+          <FeasibilityComparison
             teams={teams}
             onSelectTeam={goToTeam}
           />

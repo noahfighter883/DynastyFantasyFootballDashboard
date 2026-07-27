@@ -4,7 +4,7 @@ import DraftCapitalChart from './DraftCapitalChart'
 
 interface Props {
   team: Team
-  cameFrom?: 'overview' | 'position'
+  cameFrom?: 'overview' | 'position' | 'feasibility'
   initialPosFilter?: Position | 'ALL'
 }
 
@@ -450,60 +450,6 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
             </div>
           </div>
           <DraftCapitalChart team={team} mode={chartMode} />
-
-          {/* Feasibility score -- how plausible it'd be for this exact
-              top-15 roster to have come from one snake draft. Lower =
-              more replicable/ordinary, higher = exceptional. */}
-          <div
-            style={{
-              display: 'flex',
-              gap: 12,
-              marginTop: 16,
-              paddingTop: 16,
-              borderTop: '1px solid #232c47',
-              flexWrap: 'wrap',
-            }}
-          >
-            <div
-              style={{
-                flex: '1 1 200px',
-                background: '#0a0f1e',
-                border: '1px solid #232c47',
-                borderRadius: 8,
-                padding: '10px 14px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ fontSize: 12, color: '#6b7280' }}>Dynasty Feasibility</span>
-              <span style={{ fontSize: 16, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', color: '#6366f1' }}>
-                {team.totals.dynastyFeasibility.toFixed(1)}
-              </span>
-            </div>
-            <div
-              style={{
-                flex: '1 1 200px',
-                background: '#0a0f1e',
-                border: '1px solid #232c47',
-                borderRadius: 8,
-                padding: '10px 14px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ fontSize: 12, color: '#6b7280' }}>Redraft Feasibility</span>
-              <span style={{ fontSize: 16, fontWeight: 600, fontFamily: 'JetBrains Mono, monospace', color: '#3b82f6' }}>
-                {team.totals.redraftFeasibility.toFixed(1)}
-              </span>
-            </div>
-          </div>
-          <p style={{ fontSize: 11, color: '#4b5563', marginTop: 8, lineHeight: 1.5 }}>
-            How likely it'd be for this exact top-15 roster to come from one real snake draft. Lower = an
-            ordinary, replicable team. Higher = the roster relies on players falling further than a real
-            draft would allow -- hard to explain other than exceptional asset management (or luck).
-          </p>
         </div>
       )}
 

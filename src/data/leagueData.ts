@@ -75,6 +75,54 @@ function feasibilityScore(
   return Math.round((slotTotal / numTeams) * 10) / 10
 }
 
+export interface FeasibilityBand {
+  label: string
+  description: string
+  min: number
+  max: number | null // null = no upper bound
+  color: string
+}
+
+// Cutoffs are a starting point based on observed scores across real
+// rosters, not a precise statistical threshold -- tune freely.
+export const FEASIBILITY_BANDS: FeasibilityBand[] = [
+  {
+    label: 'Very Feasible',
+    description: 'An ordinary roster -- almost any draft position could produce this.',
+    min: 0,
+    max: 5,
+    color: '#34d399',
+  },
+  {
+    label: 'Feasible',
+    description: 'Solid value, but well within what a normal draft plausibly produces.',
+    min: 5,
+    max: 15,
+    color: '#60a5fa',
+  },
+  {
+    label: 'Unfeasible',
+    description: "Requires more value than most draft positions would realistically produce.",
+    min: 15,
+    max: 30,
+    color: '#f0b429',
+  },
+  {
+    label: 'Very Unfeasible',
+    description: 'Exceptional -- hard to explain via a single real draft at all.',
+    min: 30,
+    max: null,
+    color: '#f87171',
+  },
+]
+
+export function getFeasibilityBand(score: number): FeasibilityBand {
+  return (
+    FEASIBILITY_BANDS.find((b) => score >= b.min && (b.max === null || score < b.max)) ??
+    FEASIBILITY_BANDS[FEASIBILITY_BANDS.length - 1]
+  )
+}
+
 function computeTotals(players: Player[], numTeams: number) {
   const realStarters = players.filter((p) => p.isStarter)
 
