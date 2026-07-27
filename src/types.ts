@@ -40,6 +40,11 @@ export interface TeamTotals {
   RB: PositionTotals
   WR: PositionTotals
   TE: PositionTotals
+  // How plausible it'd be for this exact top-15 roster (by rank) to have
+  // come from a single snake draft. Lower = more feasible/replicable
+  // (an ordinary team). Higher = exceptional, hard to explain via one draft.
+  dynastyFeasibility: number
+  redraftFeasibility: number
 }
 
 export interface Team {

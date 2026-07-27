@@ -27,6 +27,54 @@ function metricSort(
   return [...arr].sort((a, b) => (higherIsBetter ? b[field] - a[field] : a[field] - b[field]))
 }
 
+const FEASIBILITY_PICKS = 15
+
+// Overall pick number for a given round of a snake draft, for whoever holds
+// "slot" in round 1 (1-indexed). Odd rounds go in slot order; even rounds
+// reverse (snake).
+function snakePick(round: number, slot: number, numTeams: number): number {
+  const slotInRound = round % 2 === 1 ? slot : numTeams - slot + 1
+  return (round - 1) * numTeams + slotInRound
+}
+
+// Feasibility: how plausible it'd be for this exact top-15 (by rank) to
+// have come from a single snake draft. For every possible round-1 slot this
+// team might have held, simulate the snake-draft pick sequence and measure
+// how much each actual player "outkicks" (has a better rank than) the pick
+// expected at that point in the sequence -- only outkicking counts against
+// feasibility, since a player worse than their expected slot is a
+// completely normal draft outcome (reaches/busts happen in every real
+// draft). Weighted 1/round, since ADP consensus is tight and meaningful at
+// the top of the draft but mostly noise late, so a round-1 outkick is a far
+// stronger signal than an identical-magnitude one in round 12. Averaged
+// across every possible starting slot so the result isn't tied to one
+// arbitrary anchor.
+//
+// Lower score = more feasible/replicable -- an ordinary team any of the 12
+// draft slots could have produced. Higher score = exceptional, hard to
+// explain via a single real draft.
+function feasibilityScore(
+  players: Player[],
+  field: 'dynastyOverallRank' | 'redraftOverallRank',
+  numTeams: number
+): number {
+  const topPlayers = [...players].sort((a, b) => a[field] - b[field]).slice(0, FEASIBILITY_PICKS)
+  if (topPlayers.length === 0) return 0
+
+  let slotTotal = 0
+  for (let slot = 1; slot <= numTeams; slot++) {
+    let weightedSurplus = 0
+    for (let i = 0; i < topPlayers.length; i++) {
+      const round = i + 1
+      const expectedPick = snakePick(round, slot, numTeams)
+      const surplus = Math.max(0, expectedPick - topPlayers[i][field])
+      weightedSurplus += surplus / round
+    }
+    slotTotal += weightedSurplus
+  }
+  return Math.round((slotTotal / numTeams) * 10) / 10
+}
+
 function computeTotals(players: Player[], numTeams: number) {
   const realStarters = players.filter((p) => p.isStarter)
 
@@ -107,6 +155,8 @@ function computeTotals(players: Player[], numTeams: number) {
     RB: totalsFor('RB'),
     WR: totalsFor('WR'),
     TE: totalsFor('TE'),
+    dynastyFeasibility: feasibilityScore(players, 'dynastyOverallRank', numTeams),
+    redraftFeasibility: feasibilityScore(players, 'redraftOverallRank', numTeams),
   }
 }
 

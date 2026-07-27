@@ -122,11 +122,26 @@ const METRIC_LABELS: Record<SortMetric, string> = {
   projected: 'Proj. Points',
 }
 
+// Feasibility doesn't have a "projected points" variant -- dynasty is the
+// sensible default whenever that metric is selected.
+function getFeasibilityValue(team: Team, metric: SortMetric): number {
+  return metric === 'redraft' ? team.totals.redraftFeasibility : team.totals.dynastyFeasibility
+}
+
 export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
   const [scope, setScope] = useState<SortScope>('starters')
   const [metric, setMetric] = useState<SortMetric>('dynasty')
+  const [sortBy, setSortBy] = useState<'value' | 'feasibility'>('value')
 
   const ranked = useMemo(() => {
+    if (sortBy === 'feasibility') {
+      // Higher feasibility score = more exceptional/better team, so rank 1
+      // should be the highest score -- opposite direction from the
+      // dynasty/redraft rank metrics, where lower is better.
+      return [...teams]
+        .sort((a, b) => getFeasibilityValue(b, metric) - getFeasibilityValue(a, metric))
+        .map((t, i) => ({ ...t, rank: i + 1 }))
+    }
     const ascending = isAscendingMetric(metric)
     return [...teams]
       .sort((a, b) =>
@@ -135,7 +150,7 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
           : getMetricValue(b, scope, metric) - getMetricValue(a, scope, metric)
       )
       .map((t, i) => ({ ...t, rank: i + 1 }))
-  }, [teams, scope, metric])
+  }, [teams, scope, metric, sortBy])
 
   // For ascending metrics, the "best" bar (rank 1, lowest value) should be
   // fullest -- so we scale against the spread between best and worst.
@@ -198,7 +213,10 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
           {(['starters', 'starters_plus1', 'roster'] as SortScope[]).map((s) => (
             <button
               key={s}
-              onClick={() => setScope(s)}
+              onClick={() => {
+                setScope(s)
+                setSortBy('value')
+              }}
               aria-pressed={scope === s}
               style={{
                 padding: '5px 14px',
@@ -253,9 +271,11 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
 
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
           <div style={{ fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>
-            Ranked by: {scope === 'starters' ? 'Starters' : scope === 'starters_plus1' ? 'Starters +1' : 'Full Roster'} · {METRIC_LABELS[metric]}
+            {sortBy === 'feasibility'
+              ? `Ranked by: ${metric === 'redraft' ? 'Redraft' : 'Dynasty'} Feasibility`
+              : `Ranked by: ${scope === 'starters' ? 'Starters' : scope === 'starters_plus1' ? 'Starters +1' : 'Full Roster'} · ${METRIC_LABELS[metric]}`}
           </div>
-          {scope === 'starters_plus1' && (
+          {sortBy !== 'feasibility' && scope === 'starters_plus1' && (
             <div style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace', marginTop: 2 }}>
               +1 = best bench player added at each of QB, RB, WR, TE
             </div>
@@ -277,14 +297,14 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '44px 1fr 140px 260px',
+              gridTemplateColumns: '44px 1fr 140px 110px 260px',
               padding: '10px 20px',
               borderBottom: '1px solid #232c47',
               gap: 16,
               alignItems: 'center',
             }}
           >
-            {['RK', 'TEAM / OWNER', metric === 'projected' ? 'AVG PROJ' : 'AVG ADP', 'QB · RB · WR · TE'].map((h) => (
+            {['RK', 'TEAM / OWNER', metric === 'projected' ? 'AVG PROJ' : 'AVG ADP'].map((h) => (
               <span
                 key={h}
                 style={{
@@ -298,6 +318,36 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
                 {h}
               </span>
             ))}
+            <button
+              type="button"
+              onClick={() => setSortBy(sortBy === 'feasibility' ? 'value' : 'feasibility')}
+              title="How plausible it'd be for this team's top-15 roster to come from one snake draft"
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                color: sortBy === 'feasibility' ? '#a0a6b8' : '#6b7280',
+                fontFamily: 'JetBrains Mono, monospace',
+                background: 'none',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
+            >
+              FEASIBILITY {sortBy === 'feasibility' ? '↓' : '⇅'}
+            </button>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: '0.08em',
+                color: '#6b7280',
+                fontFamily: 'JetBrains Mono, monospace',
+              }}
+            >
+              QB · RB · WR · TE
+            </span>
           </div>
 
           {/* Rows */}
@@ -314,7 +364,7 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
                 className="row-enter"
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '44px 1fr 140px 260px',
+                  gridTemplateColumns: '44px 1fr 140px 110px 260px',
                   width: '100%',
                   padding: '14px 20px',
                   borderTop: 'none',
@@ -373,6 +423,18 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
                     }}
                   />
                 </div>
+              </div>
+
+              {/* Feasibility */}
+              <div
+                style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: sortBy === 'feasibility' ? '#e2e4e9' : '#6b7280',
+                }}
+              >
+                {getFeasibilityValue(team, metric).toFixed(1)}
               </div>
 
               {/* Per-position stats */}
