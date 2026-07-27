@@ -16,11 +16,14 @@ const PADDING_RIGHT = 20
 const PADDING_TOP = 20
 const PADDING_BOTTOM = 90
 
-function niceMax(value: number): number {
-  if (value <= 0) return 10
-  const magnitude = Math.pow(10, Math.floor(Math.log10(value)))
-  const step = magnitude / 2
-  return Math.ceil((value * 1.15) / step) * step
+// Y-axis gridlines always step by 10 or 15 (never an odd value like
+// maxVal/5 would produce) -- 10 unless that'd need more than 8 gridlines,
+// in which case 15 keeps the axis from getting cluttered.
+function computeAxis(rawMax: number): { step: number; axisMax: number } {
+  const withHeadroom = Math.max(1, rawMax) * 1.15
+  const step = Math.ceil(withHeadroom / 10) <= 8 ? 10 : 15
+  const axisMax = Math.ceil(withHeadroom / step) * step
+  return { step, axisMax }
 }
 
 function truncate(name: string, max = 14): string {
@@ -29,7 +32,11 @@ function truncate(name: string, max = 14): string {
 
 interface HoverState {
   teamId: string
+  teamName: string
   series: 'dynasty' | 'redraft'
+  value: number
+  x: number // bar center, in SVG viewBox units
+  y: number // bar top, in SVG viewBox units
 }
 
 export default function FeasibilityComparison({ teams, onSelectTeam }: Props) {
@@ -48,7 +55,7 @@ export default function FeasibilityComparison({ teams, onSelectTeam }: Props) {
   const sorted = [...rows].sort((a, b) => sortVal(b) - sortVal(a))
 
   const visibleValues = sorted.flatMap((r) => (filter === 'both' ? [r.dynasty, r.redraft] : [sortVal(r)]))
-  const maxVal = niceMax(Math.max(1, ...visibleValues))
+  const { step: yStep, axisMax: maxVal } = computeAxis(Math.max(1, ...visibleValues))
 
   const chartW = WIDTH - PADDING_LEFT - PADDING_RIGHT
   const chartH = HEIGHT - PADDING_TOP - PADDING_BOTTOM
@@ -60,8 +67,7 @@ export default function FeasibilityComparison({ teams, onSelectTeam }: Props) {
   const yFor = (val: number) => PADDING_TOP + chartH - (val / maxVal) * chartH
   const barHeight = (val: number) => (val / maxVal) * chartH
 
-  const yTicks = 5
-  const tickVals = Array.from({ length: yTicks + 1 }, (_, i) => (maxVal / yTicks) * i)
+  const tickVals = Array.from({ length: maxVal / yStep + 1 }, (_, i) => i * yStep)
 
   return (
     <div>
@@ -173,6 +179,7 @@ export default function FeasibilityComparison({ teams, onSelectTeam }: Props) {
           </div>
         )}
 
+        <div style={{ position: 'relative' }}>
         <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
           {/* Y gridlines */}
           {tickVals.map((v) => (
@@ -233,7 +240,16 @@ export default function FeasibilityComparison({ teams, onSelectTeam }: Props) {
                   opacity={isHovered ? 1 : 0.85}
                   rx={2}
                   style={{ cursor: 'pointer', transition: 'opacity 0.1s' }}
-                  onMouseEnter={() => setHovered({ teamId: row.team.id, series })}
+                  onMouseEnter={() =>
+                    setHovered({
+                      teamId: row.team.id,
+                      teamName: row.team.name,
+                      series,
+                      value,
+                      x: x + barW / 2,
+                      y: yFor(value),
+                    })
+                  }
                   onMouseLeave={() => setHovered(null)}
                   onClick={() => onSelectTeam(row.team.id)}
                 />
@@ -281,25 +297,37 @@ export default function FeasibilityComparison({ teams, onSelectTeam }: Props) {
           </text>
         </svg>
 
-        {/* Tooltip */}
-        {hovered && (
-          <div style={{ marginTop: 4, fontSize: 12, color: '#a0a6b8', minHeight: 18 }}>
-            {(() => {
-              const row = sorted.find((r) => r.team.id === hovered.teamId)
-              if (!row) return null
-              const value = hovered.series === 'dynasty' ? row.dynasty : row.redraft
-              const band = getFeasibilityBand(value)
-              return (
-                <span>
-                  <span style={{ color: '#e2e4e9', fontWeight: 600 }}>{row.team.name}</span> ·{' '}
-                  {hovered.series === 'dynasty' ? 'Dynasty' : 'Redraft'}:{' '}
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace' }}>{value.toFixed(1)}</span> ·{' '}
-                  <span style={{ color: band.color }}>{band.label}</span>
-                </span>
-              )
-            })()}
-          </div>
-        )}
+        {/* Tooltip -- floats at the hovered bar's position */}
+        {hovered && (() => {
+          const band = getFeasibilityBand(hovered.value)
+          return (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${(hovered.x / WIDTH) * 100}%`,
+                top: `${(hovered.y / HEIGHT) * 100}%`,
+                transform: 'translate(-50%, -130%)',
+                background: '#1a1d27',
+                border: `1px solid ${band.color}`,
+                borderRadius: 6,
+                padding: '6px 10px',
+                fontSize: 11,
+                fontFamily: 'JetBrains Mono, monospace',
+                color: '#e2e4e9',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            >
+              <div style={{ fontWeight: 600 }}>{hovered.teamName}</div>
+              <div style={{ color: '#6b7280' }}>
+                {hovered.series === 'dynasty' ? 'Dynasty' : 'Redraft'} · {hovered.value.toFixed(1)} ·{' '}
+                <span style={{ color: band.color }}>{band.label}</span>
+              </div>
+            </div>
+          )
+        })()}
+        </div>
       </div>
     </div>
   )

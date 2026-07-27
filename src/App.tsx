@@ -408,44 +408,46 @@ export default function App() {
       </main>
 
       {/* How it works */}
-      <footer
-        style={{
-          borderTop: "1px solid #232c47",
-          marginTop: 40,
-        }}
-      >
-        <div
+      {screen !== "feasibility" && (
+        <footer
           style={{
-            maxWidth: 1400,
-            margin: "0 auto",
-            padding: "20px 24px 32px",
+            borderTop: "1px solid #232c47",
+            marginTop: 40,
           }}
         >
-          <p
+          <div
             style={{
-              fontSize: 12,
-              color: "#6b7280",
-              lineHeight: 1.6,
-              maxWidth: 760,
+              maxWidth: 1400,
+              margin: "0 auto",
+              padding: "20px 24px 32px",
             }}
           >
-            <span style={{ color: "#a0a6b8", fontWeight: 600 }}>
-              How scoring works:
-            </span>{" "}
-            team value uses an average-rank system — lower average
-            rank means a stronger team, the same logic as golf
-            scoring — rather than a raw point total, so a team's
-            score reflects player quality regardless of roster
-            size. Values are shown in round.pick notation (e.g.{" "}
-            <span style={{ fontFamily: "JetBrains Mono, monospace" }}>
-              3.3
-            </span>{" "}
-            = the equivalent 3rd-round, 3rd-pick draft slot in a{" "}
-            {teams.length}-team snake draft). Only QB/RB/WR/TE are
-            covered — kickers, defenses, and IDP are ignored.
-          </p>
-        </div>
-      </footer>
+            <p
+              style={{
+                fontSize: 12,
+                color: "#6b7280",
+                lineHeight: 1.6,
+                maxWidth: 760,
+              }}
+            >
+              <span style={{ color: "#a0a6b8", fontWeight: 600 }}>
+                How scoring works:
+              </span>{" "}
+              team value uses an average-rank system — lower average
+              rank means a stronger team, the same logic as golf
+              scoring — rather than a raw point total, so a team's
+              score reflects player quality regardless of roster
+              size. Values are shown in round.pick notation (e.g.{" "}
+              <span style={{ fontFamily: "JetBrains Mono, monospace" }}>
+                3.3
+              </span>{" "}
+              = the equivalent 3rd-round, 3rd-pick draft slot in a{" "}
+              {teams.length}-team snake draft). Only QB/RB/WR/TE are
+              covered — kickers, defenses, and IDP are ignored.
+            </p>
+          </div>
+        </footer>
+      )}
     </div>
   );
 }
