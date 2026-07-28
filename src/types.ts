@@ -14,6 +14,11 @@ export interface Player {
   redraftPositionRank: number | null
   projectedPoints: number
   projectedPositionRank: number | null
+  // Real dynasty trade value (KeepTradeCut-style, from DynastyProcess's
+  // value_1qb) -- distinct from dynastyValue above, which is a rank-derived
+  // score only meaningful for averaging team power, not for comparing a
+  // player's worth against a draft pick in a trade.
+  dynastyTradeValue: number
 }
 
 export interface PositionTotals {
@@ -53,6 +58,8 @@ export interface FuturePick {
   // Set only when this pick was acquired via trade -- the team whose
   // original draft slot it is.
   originalTeamName: string | null
+  // Dynasty trade value, same currency as Player.dynastyTradeValue.
+  tradeValue: number
 }
 
 export interface Team {
@@ -66,4 +73,4 @@ export interface Team {
 
 export type SortScope = 'starters' | 'starters_plus1' | 'roster'
 export type SortMetric = 'dynasty' | 'redraft' | 'projected'
-export type Screen = 'overview' | 'team' | 'position' | 'feasibility'
+export type Screen = 'overview' | 'team' | 'position' | 'feasibility' | 'trade'
