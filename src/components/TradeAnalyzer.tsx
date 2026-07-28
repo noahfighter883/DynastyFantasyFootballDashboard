@@ -52,7 +52,7 @@ interface PanelProps {
   otherTeamId: string
   onTeamChange: (id: string) => void
   selected: Set<string>
-  onToggle: (key: string, value: number) => void
+  onToggle: (key: string, label: string, value: number) => void
 }
 
 function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, onToggle }: PanelProps) {
@@ -126,7 +126,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                 <input
                   type="checkbox"
                   checked={checked}
-                  onChange={() => onToggle(key, p.dynastyTradeValue)}
+                  onChange={() => onToggle(key, p.name, p.dynastyTradeValue)}
                   style={{ cursor: 'pointer' }}
                 />
                 <span style={{ flex: 1, fontSize: 13, color: '#e2e4e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -154,6 +154,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {picks.map((p) => {
                     const checked = selected.has(p.key)
+                    const pickLabel = `${p.season} Round ${p.round}${p.originalTeamName ? ` (from ${p.originalTeamName})` : ''}`
                     return (
                       <label
                         key={p.key}
@@ -170,7 +171,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => onToggle(p.key, p.tradeValue)}
+                          onChange={() => onToggle(p.key, pickLabel, p.tradeValue)}
                           style={{ cursor: 'pointer' }}
                         />
                         <span style={{ flex: 1, fontSize: 13, color: '#e2e4e9' }}>
@@ -195,36 +196,49 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
   )
 }
 
+interface SentItem {
+  label: string
+  value: number
+}
+
 export default function TradeAnalyzer({ teams }: Props) {
   const [teamAId, setTeamAId] = useState(teams[0]?.id ?? '')
   const [teamBId, setTeamBId] = useState(teams[1]?.id ?? teams[0]?.id ?? '')
-  const [sentByA, setSentByA] = useState<Map<string, number>>(new Map())
-  const [sentByB, setSentByB] = useState<Map<string, number>>(new Map())
+  const [sentByA, setSentByA] = useState<Map<string, SentItem>>(new Map())
+  const [sentByB, setSentByB] = useState<Map<string, SentItem>>(new Map())
 
-  const toggle = (map: Map<string, number>, setMap: (m: Map<string, number>) => void, key: string, value: number) => {
+  const toggle = (
+    map: Map<string, SentItem>,
+    setMap: (m: Map<string, SentItem>) => void,
+    key: string,
+    label: string,
+    value: number
+  ) => {
     const next = new Map(map)
     if (next.has(key)) next.delete(key)
-    else next.set(key, value)
+    else next.set(key, { label, value })
     setMap(next)
   }
 
   const changeTeam = (
     id: string,
     setId: (id: string) => void,
-    setMap: (m: Map<string, number>) => void
+    setMap: (m: Map<string, SentItem>) => void
   ) => {
     setId(id)
     setMap(new Map())
   }
 
-  const totalA = [...sentByA.values()].reduce((a, b) => a + b, 0)
-  const totalB = [...sentByB.values()].reduce((a, b) => a + b, 0)
+  const totalA = [...sentByA.values()].reduce((a, b) => a + b.value, 0)
+  const totalB = [...sentByB.values()].reduce((a, b) => a + b.value, 0)
   const total = totalA + totalB
   const diffPct = total === 0 ? 0 : (Math.abs(totalA - totalB) / Math.max(totalA, totalB, 1)) * 100
   const band = getFairnessBand(diffPct)
   const teamAName = teams.find((t) => t.id === teamAId)?.name ?? 'Team A'
   const teamBName = teams.find((t) => t.id === teamBId)?.name ?? 'Team B'
-  const favored = totalA === totalB ? '' : totalA > totalB ? teamAName : teamBName
+  // The side sending MORE value is giving up more than it gets back, so the
+  // side sending LESS is the one favored by the trade.
+  const favored = totalA === totalB ? '' : totalA < totalB ? teamAName : teamBName
   const hasSelections = sentByA.size > 0 || sentByB.size > 0
 
   if (teams.length < 2) {
@@ -271,7 +285,7 @@ export default function TradeAnalyzer({ teams }: Props) {
           otherTeamId={teamBId}
           onTeamChange={(id) => changeTeam(id, setTeamAId, setSentByA)}
           selected={new Set(sentByA.keys())}
-          onToggle={(key, value) => toggle(sentByA, setSentByA, key, value)}
+          onToggle={(key, label, value) => toggle(sentByA, setSentByA, key, label, value)}
         />
         <TradePanel
           side="B"
@@ -280,7 +294,7 @@ export default function TradeAnalyzer({ teams }: Props) {
           otherTeamId={teamAId}
           onTeamChange={(id) => changeTeam(id, setTeamBId, setSentByB)}
           selected={new Set(sentByB.keys())}
-          onToggle={(key, value) => toggle(sentByB, setSentByB, key, value)}
+          onToggle={(key, label, value) => toggle(sentByB, setSentByB, key, label, value)}
         />
       </div>
 
@@ -314,22 +328,64 @@ export default function TradeAnalyzer({ teams }: Props) {
         </div>
 
         {hasSelections && (
-          <div
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '6px 14px',
-              borderRadius: 6,
-              background: '#0a0f1e',
-              border: `1px solid ${band.color}`,
-            }}
-          >
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: band.color }} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: band.color }}>
-              {band.label(favored)}
-            </span>
-          </div>
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+                gap: 16,
+                marginBottom: 14,
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{teamBName} receives</div>
+                {sentByA.size === 0 ? (
+                  <div style={{ fontSize: 12, color: '#4b5563' }}>Nothing yet</div>
+                ) : (
+                  [...sentByA.entries()].map(([key, item]) => (
+                    <div key={key} style={{ fontSize: 12, color: '#e2e4e9', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                      <span style={{ color: '#6b7280', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+                        {formatValue(item.value)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{teamAName} receives</div>
+                {sentByB.size === 0 ? (
+                  <div style={{ fontSize: 12, color: '#4b5563' }}>Nothing yet</div>
+                ) : (
+                  [...sentByB.entries()].map(([key, item]) => (
+                    <div key={key} style={{ fontSize: 12, color: '#e2e4e9', display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.label}</span>
+                      <span style={{ color: '#6b7280', fontFamily: 'JetBrains Mono, monospace', flexShrink: 0 }}>
+                        {formatValue(item.value)}
+                      </span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 14px',
+                borderRadius: 6,
+                background: '#0a0f1e',
+                border: `1px solid ${band.color}`,
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: band.color }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: band.color }}>
+                {band.label(favored)}
+              </span>
+            </div>
+          </>
         )}
 
         {!hasSelections && (
@@ -338,6 +394,16 @@ export default function TradeAnalyzer({ teams }: Props) {
           </p>
         )}
       </div>
+
+      <p style={{ color: '#4b5563', fontSize: 12, lineHeight: 1.6, marginTop: 16 }}>
+        <span style={{ color: '#6b7280', fontWeight: 600 }}>How values are calculated: </span>
+        every player and future pick is priced on DynastyProcess's community-consensus dynasty
+        trade value (the same currency used by tools like KeepTradeCut) -- a single scale where
+        players and picks can be compared directly, not the rank-based numbers used elsewhere in
+        this app. Future picks two years out or further reuse the furthest year DynastyProcess
+        actually publishes as the best available estimate, since exact draft order that far ahead
+        isn't knowable yet.
+      </p>
     </div>
   )
 }
