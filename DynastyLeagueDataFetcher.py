@@ -164,6 +164,11 @@ def get_league_settings(league_id):
     return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}")
 
 
+def get_traded_picks(league_id):
+    print("Fetching traded picks...")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/traded_picks")
+
+
 class UserNotFoundError(Exception):
     pass
 
@@ -466,6 +471,73 @@ def format_round_pick(avg_rank, teams):
     return f"{round_num}.{pick_int}"
 
 
+# How many future seasons to project pick ownership for. Sleeper doesn't
+# expose a "how far out can picks be traded" setting via the API, so this is
+# a reasonable fixed default (matches how far most dynasty leagues actually
+# trade); it's widened automatically below if traded_picks mentions a season
+# further out than this.
+FUTURE_PICK_YEARS = 3
+
+
+def build_future_picks(rosters, traded_picks, roster_id_to_team_name, season, draft_rounds):
+    """
+    Projects which future rookie-draft picks each team currently holds.
+
+    Sleeper's /traded_picks endpoint only returns *overrides* -- picks that
+    have actually changed hands -- not a full grid of who owns what. Every
+    roster is assumed to hold its own original pick (round 1..draft_rounds)
+    in each future season unless a traded_picks entry says otherwise; the
+    endpoint already collapses multi-hop trades down to a single final
+    owner_id per (season, round, roster_id), so no trade-chain walking is
+    needed here.
+    """
+    roster_ids = [roster.get("roster_id") for roster in rosters]
+    if not draft_rounds or not roster_ids:
+        return {roster_id: [] for roster_id in roster_ids}
+
+    current_season = int(season)
+
+    future_seasons = set(range(current_season + 1, current_season + 1 + FUTURE_PICK_YEARS))
+    for tp in traded_picks:
+        try:
+            tp_season = int(tp.get("season"))
+        except (TypeError, ValueError):
+            continue
+        if tp_season > current_season:
+            future_seasons.add(tp_season)
+
+    # (season, round, original_roster_id) -> current owner roster_id
+    overrides = {}
+    for tp in traded_picks:
+        try:
+            tp_season = int(tp.get("season"))
+        except (TypeError, ValueError):
+            continue
+        if tp_season not in future_seasons:
+            continue
+        owner_id = tp.get("owner_id")
+        if owner_id is not None:
+            overrides[(tp_season, tp.get("round"), tp.get("roster_id"))] = owner_id
+
+    picks_by_owner = {roster_id: [] for roster_id in roster_ids}
+    for tp_season in sorted(future_seasons):
+        for round_num in range(1, draft_rounds + 1):
+            for original_roster_id in roster_ids:
+                owner_roster_id = overrides.get((tp_season, round_num, original_roster_id), original_roster_id)
+                entry = {"season": str(tp_season), "round": round_num}
+                if owner_roster_id != original_roster_id:
+                    entry["original_team_name"] = roster_id_to_team_name.get(original_roster_id, "Unknown")
+                # Owner could in principle be a roster_id no longer in the
+                # league (e.g. a since-vacated slot); surface the pick there
+                # too rather than silently dropping it.
+                picks_by_owner.setdefault(owner_roster_id, []).append(entry)
+
+    for picks in picks_by_owner.values():
+        picks.sort(key=lambda p: (int(p["season"]), p["round"]))
+
+    return picks_by_owner
+
+
 def build_position_breakdown(players_list, num_teams):
     breakdown = {}
     for pos in SKILL_POSITIONS:
@@ -509,6 +581,7 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
 
     rosters = get_rosters(league_id)
     users = get_users(league_id)
+    traded_picks = get_traded_picks(league_id)
     players = get_all_players()
     dynasty_adp = get_dynasty_rankings()
     redraft_adp = get_redraft_rankings()
@@ -540,6 +613,16 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
             "display_name": u.get("display_name"),
             "team_name": team_name or u.get("display_name"),
         }
+
+    roster_id_to_team_name = {}
+    for roster in rosters:
+        owner_info = user_map.get(roster.get("owner_id"), {"display_name": "Unknown", "team_name": "Unknown"})
+        roster_id_to_team_name[roster.get("roster_id")] = owner_info["team_name"]
+
+    draft_rounds = (settings.get("settings") or {}).get("draft_rounds")
+    future_picks_by_roster = build_future_picks(
+        rosters, traded_picks, roster_id_to_team_name, season, draft_rounds
+    )
 
     unmatched_value = set()
     unmatched_projection = set()
@@ -619,6 +702,7 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
             "position_breakdown_roster": build_position_breakdown(roster_players, num_teams),
             "position_breakdown_starters": build_position_breakdown(starters, num_teams),
             "players": roster_players,
+            "future_picks": future_picks_by_roster.get(roster_id, []),
         })
 
     # Projected-points positional rank: computed entirely from our own data

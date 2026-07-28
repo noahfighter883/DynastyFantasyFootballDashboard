@@ -47,12 +47,21 @@ export interface TeamTotals {
   redraftFeasibility: number
 }
 
+export interface FuturePick {
+  season: string
+  round: number
+  // Set only when this pick was acquired via trade -- the team whose
+  // original draft slot it is.
+  originalTeamName: string | null
+}
+
 export interface Team {
   id: string
   name: string
   owner: string
   players: Player[]
   totals: TeamTotals
+  futurePicks: FuturePick[]
 }
 
 export type SortScope = 'starters' | 'starters_plus1' | 'roster'

@@ -244,6 +244,18 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
     return ids
   }, [team.players, metric])
 
+  const futurePicksBySeason = useMemo(() => {
+    const bySeason = new Map<string, typeof team.futurePicks>()
+    for (const pick of team.futurePicks) {
+      const existing = bySeason.get(pick.season)
+      if (existing) existing.push(pick)
+      else bySeason.set(pick.season, [pick])
+    }
+    return [...bySeason.entries()]
+      .sort(([a], [b]) => Number(a) - Number(b))
+      .map(([season, picks]) => [season, [...picks].sort((a, b) => a.round - b.round)] as const)
+  }, [team.futurePicks])
+
   const headerStyle = (col: SortCol): React.CSSProperties => ({
     cursor: 'pointer',
     userSelect: 'none',
@@ -508,6 +520,61 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
           ))}
         </div>
       </div>
+
+      {/* Future draft picks */}
+      {futurePicksBySeason.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <div style={{ marginBottom: 12 }}>
+            <h2 style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.02em' }}>Future Draft Picks</h2>
+          </div>
+          <div
+            style={{
+              background: '#131a2b',
+              border: '1px solid #232c47',
+              borderRadius: 10,
+              padding: '16px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+            }}
+          >
+            {futurePicksBySeason.map(([season, picks]) => (
+              <div key={season} style={{ display: 'flex', alignItems: 'baseline', gap: 14, flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    fontFamily: 'JetBrains Mono, monospace',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#a0a6b8',
+                    minWidth: 44,
+                  }}
+                >
+                  {season}
+                </span>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {picks.map((p, i) => (
+                    <span
+                      key={i}
+                      style={{
+                        fontSize: 12,
+                        fontFamily: 'JetBrains Mono, monospace',
+                        padding: '4px 10px',
+                        borderRadius: 6,
+                        background: p.originalTeamName ? '#1c2540' : '#0a0f1e',
+                        border: `1px solid ${p.originalTeamName ? '#2e3a5c' : '#232c47'}`,
+                        color: '#e2e4e9',
+                      }}
+                    >
+                      Rd {p.round}
+                      {p.originalTeamName && <span style={{ color: '#6b7280' }}> (from {p.originalTeamName})</span>}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

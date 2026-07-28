@@ -1,4 +1,4 @@
-import type { Team, Player, Position } from '../types'
+import type { Team, Player, Position, FuturePick } from '../types'
 
 // Converts an overall rank (or average rank) into standard fantasy draft
 // "round.pick" notation, e.g. 51 -> "5.3" (5th round, 3rd pick),
@@ -577,12 +577,43 @@ const rawTeams = [
 
 // Sample data from a real 12-team dynasty league, used as a "view a demo"
 // fallback before someone enters their own league.
+// A couple of teams get sample traded future picks so the demo shows off
+// what an acquired (vs. original) pick looks like.
+const demoFuturePicks: Record<string, FuturePick[]> = {
+  t1: [
+    { season: '2027', round: 1, originalTeamName: null },
+    { season: '2027', round: 2, originalTeamName: null },
+    { season: '2027', round: 2, originalTeamName: 'MegaMoneyMoves' },
+    { season: '2027', round: 3, originalTeamName: null },
+    { season: '2028', round: 1, originalTeamName: null },
+    { season: '2028', round: 2, originalTeamName: null },
+    { season: '2028', round: 3, originalTeamName: null },
+    { season: '2029', round: 1, originalTeamName: null },
+    { season: '2029', round: 2, originalTeamName: null },
+    { season: '2029', round: 3, originalTeamName: null },
+  ],
+  t5: [
+    { season: '2027', round: 1, originalTeamName: null },
+    { season: '2027', round: 3, originalTeamName: null },
+    { season: '2028', round: 1, originalTeamName: null },
+    { season: '2028', round: 2, originalTeamName: null },
+    { season: '2029', round: 1, originalTeamName: null },
+    { season: '2029', round: 2, originalTeamName: null },
+    { season: '2029', round: 3, originalTeamName: null },
+  ],
+}
+
 export const DEMO_LEAGUE: Team[] = rawTeams.map(({ id, name, owner, players }) => ({
   id,
   name,
   owner,
   players,
   totals: computeTotals(players, 12),
+  futurePicks:
+    demoFuturePicks[id] ??
+    (['2027', '2028', '2029'] as const).flatMap((season) =>
+      [1, 2, 3].map((round) => ({ season, round, originalTeamName: null }))
+    ),
 }))
 
 // ---------------------------------------------------------------------------
@@ -607,11 +638,18 @@ interface ApiPlayer {
   projected_position_rank: number | null
 }
 
+interface ApiFuturePick {
+  season: string
+  round: number
+  original_team_name?: string
+}
+
 interface ApiTeam {
   roster_id: number
   owner: string
   team_name: string
   players: ApiPlayer[]
+  future_picks: ApiFuturePick[]
 }
 
 export interface ApiLeaguePayload {
@@ -642,6 +680,14 @@ function apiPlayerToPlayer(p: ApiPlayer): Player {
   }
 }
 
+function apiFuturePickToFuturePick(p: ApiFuturePick): FuturePick {
+  return {
+    season: p.season,
+    round: p.round,
+    originalTeamName: p.original_team_name ?? null,
+  }
+}
+
 export function buildLeagueFromApiPayload(payload: ApiLeaguePayload): Team[] {
   return payload.teams.map((t) => {
     const players = t.players.map(apiPlayerToPlayer)
@@ -651,6 +697,7 @@ export function buildLeagueFromApiPayload(payload: ApiLeaguePayload): Team[] {
       owner: t.owner,
       players,
       totals: computeTotals(players, payload.num_teams),
+      futurePicks: (t.future_picks ?? []).map(apiFuturePickToFuturePick),
     }
   })
 }
