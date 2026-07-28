@@ -16,6 +16,7 @@ Usage:
     python3 DynastyLeagueDataFetcher.py
 """
 
+import bisect
 import copy
 import csv
 import io
@@ -324,9 +325,9 @@ def get_dynasty_rankings():
 
 
 def _get_dynasty_values_csv_text():
-    # Shared by _fetch_dynasty_rankings() and _fetch_pick_trade_values() --
-    # both parse the same DynastyProcess file, so this ensures it's only
-    # downloaded once per warm container instead of twice.
+    # Shared by _fetch_dynasty_rankings(), _fetch_dynasty_ecr_sorted(), and
+    # _fetch_pick_ecr_values() -- all three parse the same DynastyProcess
+    # file, so this ensures it's only downloaded once per warm container.
     return _cached("dynasty_values_csv_text", _fetch_dynasty_values_csv_text)
 
 
@@ -340,16 +341,16 @@ def _fetch_dynasty_values_csv_text():
 def _fetch_dynasty_rankings():
     """
     Parses DynastyProcess's open-data values.csv. Uses "ecr_1qb" (expert
-    consensus rank) for overall rank, "pos" + "ecr_pos" (the file's own
-    positional consensus rank column) for positional rank, and "value_1qb"
-    as a real dynasty trade value (KeepTradeCut-style, used by the trade
-    analyzer) -- all three already present in this one file.
+    consensus rank) for overall rank, and "pos" + "ecr_pos" (the file's own
+    positional consensus rank column) for positional rank -- both already
+    present in this one file, no extra fetch needed.
 
     Rows with pos == "PICK" (e.g. "2026 Pick 1.01") are skipped here -- they
     used to be parsed as if they were players, silently interleaving into
     the ecr sort and shifting every real player's rank down by however many
-    pick rows sorted above them. They're parsed separately, for their own
-    trade value, in _fetch_pick_trade_values().
+    pick rows sorted above them. They're parsed separately, for the trade
+    analyzer's future-pick valuation, in _fetch_dynasty_ecr_sorted() /
+    _fetch_pick_ecr_values() below.
 
     Converts overall rank into the same linear value score used everywhere:
         value = totalPlayers - rank + 1
@@ -376,11 +377,7 @@ def _fetch_dynasty_rankings():
             ecr_pos = float(ecr_pos) if ecr_pos else None
         except ValueError:
             ecr_pos = None
-        try:
-            trade_value = float(row.get("value_1qb"))
-        except (TypeError, ValueError):
-            trade_value = 0.0
-        parsed.append({"name": name, "ecr": ecr, "pos": pos, "ecr_pos": ecr_pos, "trade_value": trade_value})
+        parsed.append({"name": name, "ecr": ecr, "pos": pos, "ecr_pos": ecr_pos})
 
     # Overall rank: sort by consensus rank ascending (lower ECR = better)
     parsed.sort(key=lambda p: p["ecr"])
@@ -390,7 +387,7 @@ def _fetch_dynasty_rankings():
         rank = i + 1
         value = total - rank + 1
         key = normalize_name(p["name"])
-        lookup[key] = {"value": value, "rank": rank, "position_rank": None, "trade_value": p["trade_value"]}
+        lookup[key] = {"value": value, "rank": rank, "position_rank": None}
 
     # Positional rank: group by position, sort each group by ecr_pos ascending
     for pos in SKILL_POSITIONS:
@@ -414,23 +411,54 @@ PICK_ROUND_RE = re.compile(r"^(\d{4}) (1st|2nd|3rd|4th|5th)$")
 ORDINAL_TO_ROUND = {"1st": 1, "2nd": 2, "3rd": 3, "4th": 4, "5th": 5}
 
 
-def get_pick_trade_values():
-    return _cached("pick_trade_values", _fetch_pick_trade_values)
+def get_dynasty_ecr_sorted():
+    return _cached("dynasty_ecr_sorted", _fetch_dynasty_ecr_sorted)
 
 
-def _fetch_pick_trade_values():
+def _fetch_dynasty_ecr_sorted():
     """
-    Parses DynastyProcess's open-data values.csv (same file as
-    _fetch_dynasty_rankings(), shared via _get_dynasty_values_csv_text()) for
-    future-pick trade values. Only the current year (exact-slot, e.g.
-    "2026 Pick 1.01" -- not used here, see PICK_ROUND_RE) and the following
-    two years (generic per-round only, since draft order that far out isn't
-    known) are published. get_pick_trade_value() below clamps any season
-    requested beyond that to the furthest year actually available.
+    The sorted list of every real player's ecr_1qb (ascending) -- the same
+    data _fetch_dynasty_rankings() uses to assign rank, kept here as a flat
+    list so a future pick's own ecr_1qb (see _fetch_pick_ecr_values()) can be
+    slotted into this exact same order via bisection, giving it a real
+    dynastyOverallRank/dynastyValue on the identical scale as players,
+    instead of a separate trade-value currency.
     """
     text = _get_dynasty_values_csv_text()
     reader = csv.DictReader(io.StringIO(text))
-    values = {}
+    ecrs = []
+    for row in reader:
+        if row.get("pos") == "PICK":
+            continue
+        if not row.get("player") or not row.get("ecr_1qb"):
+            continue
+        try:
+            ecrs.append(float(row["ecr_1qb"]))
+        except ValueError:
+            continue
+    ecrs.sort()
+    return ecrs
+
+
+def get_pick_ecr_values():
+    return _cached("pick_ecr_values", _fetch_pick_ecr_values)
+
+
+def _fetch_pick_ecr_values():
+    """
+    Parses DynastyProcess's open-data values.csv (same file as
+    _fetch_dynasty_rankings(), shared via _get_dynasty_values_csv_text()) for
+    each future pick's own consensus ecr_1qb -- e.g. "2027 1st" sits at
+    ecr_1qb ~72.7, meaning the market treats that pick as roughly as valuable
+    as the ~73rd-ranked real player. Only the current year (exact-slot, e.g.
+    "2026 Pick 1.01" -- not used here, see PICK_ROUND_RE) and the following
+    two years (generic per-round only, since draft order that far out isn't
+    known) are published. get_pick_dynasty_rank_value() below clamps any
+    season requested beyond that to the furthest year actually available.
+    """
+    text = _get_dynasty_values_csv_text()
+    reader = csv.DictReader(io.StringIO(text))
+    ecrs = {}
     for row in reader:
         if row.get("pos") != "PICK":
             continue
@@ -440,26 +468,40 @@ def _fetch_pick_trade_values():
         year = int(match.group(1))
         round_num = ORDINAL_TO_ROUND[match.group(2)]
         try:
-            values[(year, round_num)] = float(row.get("value_1qb"))
+            ecrs[(year, round_num)] = float(row.get("ecr_1qb"))
         except (TypeError, ValueError):
             continue
-    print(f"  -> {len(values)} future draft pick trade values loaded.")
-    return values
+    print(f"  -> {len(ecrs)} future draft pick ECR estimates loaded.")
+    return ecrs
 
 
-def get_pick_trade_value(pick_values, season, round_num):
+def get_pick_dynasty_rank_value(pick_ecr_values, dynasty_ecr_sorted, season, round_num):
     """
-    Looks up a future pick's dynasty trade value. Clamps the season down to
-    the furthest year DynastyProcess actually publishes (reusing that year's
-    value as the best available estimate for anything further out) and the
-    round down to 5 (using round 5's value as a floor for deeper rounds).
+    Models a future pick's dynasty ADP: finds where that pick's own
+    consensus ecr_1qb (see _fetch_pick_ecr_values()) would sit among real
+    players' ecr_1qb, via bisection, and returns the rank/value that
+    position implies -- computed with the exact same
+    `value = totalPlayers - rank + 1` formula used for every player, so a
+    pick becomes a first-class entry on the same dynasty ADP scale rather
+    than a separate rating.
+
+    Clamps the season down to the furthest year DynastyProcess actually
+    publishes (reusing that year's ecr as the best available estimate for
+    anything further out) and the round down to 5 (using round 5's ecr as a
+    floor for deeper rounds). Returns (None, None) if no data is available.
     """
-    if not pick_values:
-        return 0.0
-    max_year = max(year for year, _ in pick_values)
+    if not pick_ecr_values or not dynasty_ecr_sorted:
+        return None, None
+    max_year = max(year for year, _ in pick_ecr_values)
     lookup_year = min(int(season), max_year)
     lookup_round = min(round_num, 5)
-    return pick_values.get((lookup_year, lookup_round), 0.0)
+    pick_ecr = pick_ecr_values.get((lookup_year, lookup_round))
+    if pick_ecr is None:
+        return None, None
+    total = len(dynasty_ecr_sorted)
+    rank = bisect.bisect_left(dynasty_ecr_sorted, pick_ecr) + 1
+    value = max(0, total - rank + 1)
+    return rank, value
 
 
 # ---------------------------------------------------------------------------
@@ -486,11 +528,7 @@ def fill_unmatched_with_low_values(adp_lookup, all_skill_player_names, label):
     for i, name in enumerate(missing):
         rank = current_total + i + 1
         value = new_total - rank + 1
-        # trade_value is an absolute currency (not rank-derived like `value`
-        # above), so unmatched players just get a nominal floor rather than
-        # a rescaled figure; only meaningful for dynasty lookups, harmless
-        # (unused) on redraft ones.
-        adp_lookup[normalize_name(name)] = {"value": value, "rank": rank, "position_rank": None, "trade_value": 1}
+        adp_lookup[normalize_name(name)] = {"value": value, "rank": rank, "position_rank": None}
 
     if missing:
         print(f"  -> {len(missing)} {label} players had no ADP data; assigned fallback low ranks {current_total + 1}-{new_total}.")
@@ -565,7 +603,9 @@ def format_round_pick(avg_rank, teams):
 FUTURE_PICK_YEARS = 3
 
 
-def build_future_picks(rosters, traded_picks, roster_id_to_team_name, season, draft_rounds, pick_values):
+def build_future_picks(
+    rosters, traded_picks, roster_id_to_team_name, season, draft_rounds, pick_ecr_values, dynasty_ecr_sorted
+):
     """
     Projects which future rookie-draft picks each team currently holds.
 
@@ -610,10 +650,14 @@ def build_future_picks(rosters, traded_picks, roster_id_to_team_name, season, dr
         for round_num in range(1, draft_rounds + 1):
             for original_roster_id in roster_ids:
                 owner_roster_id = overrides.get((tp_season, round_num, original_roster_id), original_roster_id)
+                pick_rank, pick_value = get_pick_dynasty_rank_value(
+                    pick_ecr_values, dynasty_ecr_sorted, tp_season, round_num
+                )
                 entry = {
                     "season": str(tp_season),
                     "round": round_num,
-                    "trade_value": get_pick_trade_value(pick_values, tp_season, round_num),
+                    "dynasty_overall_rank": pick_rank,
+                    "dynasty_value": pick_value if pick_value is not None else 0,
                 }
                 if owner_roster_id != original_roster_id:
                     entry["original_team_name"] = roster_id_to_team_name.get(original_roster_id, "Unknown")
@@ -709,10 +753,11 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
         owner_info = user_map.get(roster.get("owner_id"), {"display_name": "Unknown", "team_name": "Unknown"})
         roster_id_to_team_name[roster.get("roster_id")] = owner_info["team_name"]
 
-    pick_values = get_pick_trade_values()
+    pick_ecr_values = get_pick_ecr_values()
+    dynasty_ecr_sorted = get_dynasty_ecr_sorted()
     draft_rounds = (settings.get("settings") or {}).get("draft_rounds")
     future_picks_by_roster = build_future_picks(
-        rosters, traded_picks, roster_id_to_team_name, season, draft_rounds, pick_values
+        rosters, traded_picks, roster_id_to_team_name, season, draft_rounds, pick_ecr_values, dynasty_ecr_sorted
     )
 
     unmatched_value = set()
@@ -758,7 +803,6 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
                 "dynasty_value": dynasty_info["value"] if dynasty_info else None,
                 "dynasty_overall_rank": dynasty_info["rank"] if dynasty_info else None,
                 "dynasty_position_rank": dynasty_info.get("position_rank") if dynasty_info else None,
-                "dynasty_trade_value": dynasty_info["trade_value"] if dynasty_info else None,
                 "redraft_value": redraft_info["value"] if redraft_info else None,
                 "redraft_overall_rank": redraft_info["rank"] if redraft_info else None,
                 "redraft_position_rank": redraft_info.get("position_rank") if redraft_info else None,

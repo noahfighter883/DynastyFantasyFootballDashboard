@@ -14,11 +14,6 @@ export interface Player {
   redraftPositionRank: number | null
   projectedPoints: number
   projectedPositionRank: number | null
-  // Real dynasty trade value (KeepTradeCut-style, from DynastyProcess's
-  // value_1qb) -- distinct from dynastyValue above, which is a rank-derived
-  // score only meaningful for averaging team power, not for comparing a
-  // player's worth against a draft pick in a trade.
-  dynastyTradeValue: number
 }
 
 export interface PositionTotals {
@@ -58,8 +53,14 @@ export interface FuturePick {
   // Set only when this pick was acquired via trade -- the team whose
   // original draft slot it is.
   originalTeamName: string | null
-  // Dynasty trade value, same currency as Player.dynastyTradeValue.
-  tradeValue: number
+  // Modeled dynasty ADP for this pick -- DynastyProcess's own consensus ECR
+  // for e.g. "2027 1st" is used to find where that pick would sit among
+  // real players' ECR, giving it a dynastyOverallRank/dynastyValue on the
+  // exact same scale as Player, rather than a separate trade-value currency.
+  // There's no equivalent redraft model: a future pick's player doesn't
+  // exist in this year's redraft pool yet.
+  dynastyOverallRank: number | null
+  dynastyValue: number
 }
 
 export interface Team {

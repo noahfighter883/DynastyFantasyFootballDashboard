@@ -208,15 +208,6 @@ function computeTotals(players: Player[], numTeams: number) {
   }
 }
 
-// Demo-only stand-in for a real dynasty trade value (DynastyProcess's
-// value_1qb, which live leagues get directly from the API). Shaped as an
-// exponential decay fit to real observed value_1qb-vs-rank data points
-// (e.g. rank 2 -> ~9700, rank 24 -> ~5800, rank 240 -> ~40) so the demo
-// league's Trade Analyzer numbers look plausible -- not a real valuation.
-function syntheticTradeValue(dynastyOverallRank: number): number {
-  return Math.max(1, Math.round(10000 * Math.exp(-dynastyOverallRank / 40)))
-}
-
 function mkPlayer(
   id: string,
   name: string,
@@ -237,7 +228,6 @@ function mkPlayer(
     dynastyValue, dynastyOverallRank, dynastyPositionRank,
     redraftValue, redraftOverallRank, redraftPositionRank,
     projectedPoints, projectedPositionRank,
-    dynastyTradeValue: syntheticTradeValue(dynastyOverallRank),
   }
 }
 
@@ -585,27 +575,33 @@ const rawTeams = [
   { id: 't12', name: 'timmmimmi', owner: 'timmmimmi', players: t12Players },
 ]
 
-// Demo-only stand-in for the real DynastyProcess future-pick trade values
-// (which live leagues get directly from the API) -- illustrative numbers in
-// the same shape as the real table (round 1 >> round 2 >> round 3, later
-// years worth slightly less). Seasons beyond what's "published" here clamp
-// down to the furthest year available, same approximation the backend uses.
-const DEMO_PICK_ROUND_VALUE: Record<string, Record<number, number>> = {
-  '2027': { 1: 1900, 2: 210, 3: 40 },
-  '2028': { 1: 1500, 2: 170, 3: 30 },
+// Demo-only stand-in for the modeled pick ranks the live backend derives
+// from DynastyProcess's own consensus ECR for future picks (see
+// get_pick_dynasty_rank_value() in DynastyLeagueDataFetcher.py) -- these are
+// the actual ranks that model produced for a real league (e.g. "2027 1st"
+// landed at rank 76 out of ~730), reused here since the demo players' own
+// dynastyOverallRank values are already scaled to that same universe size
+// (some demo players go up into the 700s). Seasons beyond what's available
+// clamp down to the furthest year present, same as the backend.
+const DEMO_DYNASTY_UNIVERSE_TOTAL = 730
+const DEMO_PICK_RANK: Record<string, Record<number, number>> = {
+  '2027': { 1: 76, 2: 166, 3: 242 },
+  '2028': { 1: 83, 2: 174, 3: 248 },
 }
 
-function demoPickTradeValue(season: string, round: number): number {
-  const years = Object.keys(DEMO_PICK_ROUND_VALUE)
+function demoPickDynastyRankValue(season: string, round: number): { dynastyOverallRank: number | null; dynastyValue: number } {
+  const years = Object.keys(DEMO_PICK_RANK)
   const clampedYear = String(Math.min(Number(season), Math.max(...years.map(Number))))
-  return DEMO_PICK_ROUND_VALUE[clampedYear]?.[round] ?? 0
+  const rank = DEMO_PICK_RANK[clampedYear]?.[round] ?? null
+  const value = rank === null ? 0 : Math.max(0, DEMO_DYNASTY_UNIVERSE_TOTAL - rank + 1)
+  return { dynastyOverallRank: rank, dynastyValue: value }
 }
 
 // Sample data from a real 12-team dynasty league, used as a "view a demo"
 // fallback before someone enters their own league.
 // A couple of teams get sample traded future picks so the demo shows off
 // what an acquired (vs. original) pick looks like.
-const demoFuturePicks: Record<string, Omit<FuturePick, 'tradeValue'>[]> = {
+const demoFuturePicks: Record<string, Omit<FuturePick, 'dynastyOverallRank' | 'dynastyValue'>[]> = {
   t1: [
     { season: '2027', round: 1, originalTeamName: null },
     { season: '2027', round: 2, originalTeamName: null },
@@ -640,7 +636,7 @@ export const DEMO_LEAGUE: Team[] = rawTeams.map(({ id, name, owner, players }) =
     (['2027', '2028', '2029'] as const).flatMap((season) =>
       [1, 2, 3].map((round) => ({ season, round, originalTeamName: null }))
     )
-  ).map((pick) => ({ ...pick, tradeValue: demoPickTradeValue(pick.season, pick.round) })),
+  ).map((pick) => ({ ...pick, ...demoPickDynastyRankValue(pick.season, pick.round) })),
 }))
 
 // ---------------------------------------------------------------------------
@@ -663,14 +659,14 @@ interface ApiPlayer {
   redraft_position_rank: number | null
   projected_points: number | null
   projected_position_rank: number | null
-  dynasty_trade_value: number | null
 }
 
 interface ApiFuturePick {
   season: string
   round: number
   original_team_name?: string
-  trade_value: number
+  dynasty_overall_rank: number | null
+  dynasty_value: number
 }
 
 interface ApiTeam {
@@ -706,7 +702,6 @@ function apiPlayerToPlayer(p: ApiPlayer): Player {
     redraftPositionRank: p.redraft_position_rank,
     projectedPoints: p.projected_points ?? 0,
     projectedPositionRank: p.projected_position_rank,
-    dynastyTradeValue: p.dynasty_trade_value ?? 0,
   }
 }
 
@@ -715,7 +710,8 @@ function apiFuturePickToFuturePick(p: ApiFuturePick): FuturePick {
     season: p.season,
     round: p.round,
     originalTeamName: p.original_team_name ?? null,
-    tradeValue: p.trade_value ?? 0,
+    dynastyOverallRank: p.dynasty_overall_rank,
+    dynastyValue: p.dynasty_value ?? 0,
   }
 }
 

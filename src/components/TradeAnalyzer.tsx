@@ -5,6 +5,8 @@ interface Props {
   teams: Team[]
 }
 
+type ValueMode = 'dynasty' | 'redraft'
+
 interface KeyedPick extends FuturePick {
   key: string
 }
@@ -50,16 +52,18 @@ interface PanelProps {
   teams: Team[]
   teamId: string
   otherTeamId: string
+  mode: ValueMode
   onTeamChange: (id: string) => void
   selected: Set<string>
   onToggle: (key: string, label: string, value: number) => void
 }
 
-function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, onToggle }: PanelProps) {
+function TradePanel({ side, teams, teamId, otherTeamId, mode, onTeamChange, selected, onToggle }: PanelProps) {
   const team = teams.find((t) => t.id === teamId)
+  const field = mode === 'dynasty' ? 'dynastyValue' : 'redraftValue'
   const sortedPlayers = useMemo(
-    () => (team ? [...team.players].sort((a, b) => b.dynastyTradeValue - a.dynastyTradeValue) : []),
-    [team]
+    () => (team ? [...team.players].sort((a, b) => b[field] - a[field]) : []),
+    [team, field]
   )
   const pickGroups = useMemo(() => (team ? groupBySeason(keyedFuturePicks(team)) : []), [team])
 
@@ -110,6 +114,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
           {sortedPlayers.map((p) => {
             const key = `player:${p.id}`
             const checked = selected.has(key)
+            const value = p[field]
             return (
               <label
                 key={p.id}
@@ -126,7 +131,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                 <input
                   type="checkbox"
                   checked={checked}
-                  onChange={() => onToggle(key, p.name, p.dynastyTradeValue)}
+                  onChange={() => onToggle(key, p.name, value)}
                   style={{ cursor: 'pointer' }}
                 />
                 <span style={{ flex: 1, fontSize: 13, color: '#e2e4e9', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -134,7 +139,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                 </span>
                 <span style={{ fontSize: 11, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>{p.position}</span>
                 <span style={{ fontSize: 12, color: '#a0a6b8', fontFamily: 'JetBrains Mono, monospace', minWidth: 46, textAlign: 'right' }}>
-                  {formatValue(p.dynastyTradeValue)}
+                  {formatValue(value)}
                 </span>
               </label>
             )
@@ -145,6 +150,11 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
       {pickGroups.length > 0 && (
         <div>
           <div style={{ fontSize: 10, color: '#6b7280', letterSpacing: '0.07em', marginBottom: 6 }}>FUTURE PICKS</div>
+          {mode === 'redraft' && (
+            <p style={{ fontSize: 11, color: '#4b5563', marginBottom: 6, lineHeight: 1.4 }}>
+              Future picks aren't in this year's redraft pool yet, so they have no redraft value.
+            </p>
+          )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {pickGroups.map(([season, picks]) => (
               <div key={season}>
@@ -155,6 +165,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                   {picks.map((p) => {
                     const checked = selected.has(p.key)
                     const pickLabel = `${p.season} Round ${p.round}${p.originalTeamName ? ` (from ${p.originalTeamName})` : ''}`
+                    const disabled = mode === 'redraft'
                     return (
                       <label
                         key={p.key}
@@ -165,14 +176,16 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                           padding: '6px 8px',
                           borderRadius: 6,
                           background: checked ? '#1c2540' : 'transparent',
-                          cursor: 'pointer',
+                          cursor: disabled ? 'not-allowed' : 'pointer',
+                          opacity: disabled ? 0.45 : 1,
                         }}
                       >
                         <input
                           type="checkbox"
                           checked={checked}
-                          onChange={() => onToggle(p.key, pickLabel, p.tradeValue)}
-                          style={{ cursor: 'pointer' }}
+                          disabled={disabled}
+                          onChange={() => onToggle(p.key, pickLabel, p.dynastyValue)}
+                          style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
                         />
                         <span style={{ flex: 1, fontSize: 13, color: '#e2e4e9' }}>
                           Round {p.round}
@@ -181,7 +194,7 @@ function TradePanel({ side, teams, teamId, otherTeamId, onTeamChange, selected, 
                           )}
                         </span>
                         <span style={{ fontSize: 12, color: '#a0a6b8', fontFamily: 'JetBrains Mono, monospace', minWidth: 46, textAlign: 'right' }}>
-                          {formatValue(p.tradeValue)}
+                          {disabled ? 'N/A' : formatValue(p.dynastyValue)}
                         </span>
                       </label>
                     )
@@ -202,6 +215,7 @@ interface SentItem {
 }
 
 export default function TradeAnalyzer({ teams }: Props) {
+  const [mode, setMode] = useState<ValueMode>('dynasty')
   const [teamAId, setTeamAId] = useState(teams[0]?.id ?? '')
   const [teamBId, setTeamBId] = useState(teams[1]?.id ?? teams[0]?.id ?? '')
   const [sentByA, setSentByA] = useState<Map<string, SentItem>>(new Map())
@@ -218,6 +232,12 @@ export default function TradeAnalyzer({ teams }: Props) {
     if (next.has(key)) next.delete(key)
     else next.set(key, { label, value })
     setMap(next)
+  }
+
+  const changeMode = (m: ValueMode) => {
+    setMode(m)
+    setSentByA(new Map())
+    setSentByB(new Map())
   }
 
   const changeTeam = (
@@ -266,8 +286,43 @@ export default function TradeAnalyzer({ teams }: Props) {
         </h1>
         <p style={{ color: '#6b7280', fontSize: 13 }}>
           Pick two teams, check off what each side sends, and see who wins the trade -- using
-          real dynasty trade value for both players and future draft picks.
+          this league's own dynasty/redraft ADP for both players and future draft picks.
         </p>
+      </div>
+
+      <div style={{ display: 'flex', marginBottom: 20 }}>
+        <div
+          style={{
+            display: 'flex',
+            background: '#131a2b',
+            border: '1px solid #232c47',
+            borderRadius: 7,
+            padding: 3,
+            gap: 2,
+          }}
+        >
+          {(['dynasty', 'redraft'] as ValueMode[]).map((m) => (
+            <button
+              key={m}
+              onClick={() => changeMode(m)}
+              aria-pressed={mode === m}
+              style={{
+                padding: '5px 14px',
+                borderRadius: 5,
+                fontSize: 12,
+                fontWeight: mode === m ? 600 : 400,
+                background: mode === m ? '#1c2540' : 'transparent',
+                color: mode === m ? '#e2e4e9' : '#6b7280',
+                border: mode === m ? '1px solid #2e3a5c' : '1px solid transparent',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                textTransform: 'capitalize',
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div
@@ -283,6 +338,7 @@ export default function TradeAnalyzer({ teams }: Props) {
           teams={teams}
           teamId={teamAId}
           otherTeamId={teamBId}
+          mode={mode}
           onTeamChange={(id) => changeTeam(id, setTeamAId, setSentByA)}
           selected={new Set(sentByA.keys())}
           onToggle={(key, label, value) => toggle(sentByA, setSentByA, key, label, value)}
@@ -292,6 +348,7 @@ export default function TradeAnalyzer({ teams }: Props) {
           teams={teams}
           teamId={teamBId}
           otherTeamId={teamAId}
+          mode={mode}
           onTeamChange={(id) => changeTeam(id, setTeamBId, setSentByB)}
           selected={new Set(sentByB.keys())}
           onToggle={(key, label, value) => toggle(sentByB, setSentByB, key, label, value)}
@@ -397,12 +454,14 @@ export default function TradeAnalyzer({ teams }: Props) {
 
       <p style={{ color: '#4b5563', fontSize: 12, lineHeight: 1.6, marginTop: 16 }}>
         <span style={{ color: '#6b7280', fontWeight: 600 }}>How values are calculated: </span>
-        every player and future pick is priced on DynastyProcess's community-consensus dynasty
-        trade value (the same currency used by tools like KeepTradeCut) -- a single scale where
-        players and picks can be compared directly, not the rank-based numbers used elsewhere in
-        this app. Future picks two years out or further reuse the furthest year DynastyProcess
-        actually publishes as the best available estimate, since exact draft order that far ahead
-        isn't knowable yet.
+        players use this league's own dynasty or redraft ADP-derived value (the same
+        <code style={{ fontFamily: 'JetBrains Mono, monospace' }}> value = totalPlayers − rank + 1 </code>
+        score used everywhere else in this app, not a separate rating). Future picks only get a
+        dynasty value: DynastyProcess's own consensus ranking for a pick like "2027 1st" is used to
+        find where it would sit among real players' ADP, giving it a rank/value on that exact same
+        scale. Picks two years out or further reuse the furthest year DynastyProcess actually
+        publishes, since exact draft order that far ahead isn't knowable yet -- and picks have no
+        redraft value, since that player isn't in this year's redraft pool at all.
       </p>
     </div>
   )
