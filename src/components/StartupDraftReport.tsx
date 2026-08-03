@@ -262,6 +262,16 @@ const COLUMNS: ColumnDef[] = [
     render: (p) => p.age_now ?? '—',
   },
   {
+    key: 'drafted_by_team_name',
+    label: 'DRAFTED BY',
+    width: '150px',
+    description: 'Team that made this pick in the startup draft',
+    groupStart: true,
+    defaultDir: 'asc',
+    sortValue: (p) => p.drafted_by_team_name ?? 'zzz',
+    render: (p) => p.drafted_by_team_name ?? '—',
+  },
+  {
     key: 'current_team_name',
     label: 'CURRENT TEAM',
     width: '160px',
@@ -301,7 +311,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
 
   return (
     <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
-      <div style={{ minWidth: 1080 }}>
+      <div style={{ minWidth: 1240 }}>
         <div
           style={{
             display: 'grid',

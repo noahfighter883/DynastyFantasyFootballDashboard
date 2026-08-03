@@ -11,6 +11,7 @@ export interface StartupDraftPick {
   movement: number | null
   age_at_draft: number | null
   age_now: number | null
+  drafted_by_team_name: string | null
   current_team_name: string | null
 }
 

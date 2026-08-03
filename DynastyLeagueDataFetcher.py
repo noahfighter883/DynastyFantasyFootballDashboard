@@ -579,6 +579,32 @@ def build_startup_draft_report(league_id):
         for pid in (r.get("players") or []):
             player_id_to_current_team[str(pid)] = team_name
 
+    # Who made each pick, at the time -- a separate lookup from the current
+    # owner above, since a roster's owner (and roster_id numbering) can
+    # change between the startup season and now.
+    if startup_league_id == league_id:
+        startup_rosters, startup_users = rosters, users
+    else:
+        startup_rosters = _cached(
+            f"startup_draft:{startup_league_id}:rosters",
+            lambda: get_rosters(startup_league_id),
+            max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+        )
+        startup_users = _cached(
+            f"startup_draft:{startup_league_id}:users",
+            lambda: get_users(startup_league_id),
+            max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+        )
+    startup_user_map = {}
+    for u in startup_users or []:
+        team_name = None
+        if u.get("metadata"):
+            team_name = u["metadata"].get("team_name")
+        startup_user_map[u["user_id"]] = team_name or u.get("display_name") or "Unknown"
+    startup_roster_id_to_team_name = {
+        r.get("roster_id"): startup_user_map.get(r.get("owner_id"), "Unknown") for r in (startup_rosters or [])
+    }
+
     skill_picks = []
     for pick in raw_picks:
         meta = pick.get("metadata") or {}
@@ -643,6 +669,7 @@ def build_startup_draft_report(league_id):
             "movement": None,
             "age_at_draft": age_at_draft,
             "age_now": age_now,
+            "drafted_by_team_name": startup_roster_id_to_team_name.get(pick.get("roster_id"), "Unknown"),
             "current_team_name": player_id_to_current_team.get(pid),
         })
 
