@@ -247,12 +247,19 @@ ACQUISITION_LABELS = {
 def get_season_draft_events(league_id, owner_map, is_startup_season):
     """
     Returns draft-pick events for one season as
-    [{"player_id", "owner_id", "type", "week"}, ...]. Sleeper doesn't
-    label a draft as "startup" vs "rookie" -- the oldest season in the
-    league's history is assumed to be the startup, everything after that
-    a rookie draft, which holds for the normal dynasty format this app
-    targets. Only completed drafts count, so an in-progress startup/rookie
-    draft doesn't get misread as a finished acquisition.
+    [{"player_id", "owner_id", "type", "week", "round", "pick"}, ...].
+    Sleeper doesn't label a draft as "startup" vs "rookie" -- the oldest
+    season in the league's history is assumed to be the startup,
+    everything after that a rookie draft, which holds for the normal
+    dynasty format this app targets. Only completed drafts count, so an
+    in-progress startup/rookie draft doesn't get misread as a finished
+    acquisition.
+
+    "pick" is the pick number WITHIN its round (e.g. round 2, pick 5 of
+    12 -- shown as "2.05"), derived from Sleeper's overall pick_no and the
+    draft's team count, not draft_slot -- draft_slot is a team's fixed
+    seed position, which only matches their actual pick-within-round on
+    odd ("right-side") rounds of a snake draft.
     """
     try:
         drafts = get_drafts_for_league(league_id)
@@ -264,6 +271,7 @@ def get_season_draft_events(league_id, owner_map, is_startup_season):
     for d in drafts or []:
         if d.get("status") != "complete":
             continue
+        teams = (d.get("settings") or {}).get("teams")
         try:
             picks = get_draft_picks(d.get("draft_id"))
         except (urllib.error.HTTPError, urllib.error.URLError):
@@ -271,8 +279,20 @@ def get_season_draft_events(league_id, owner_map, is_startup_season):
         for pick in picks or []:
             pid = pick.get("player_id")
             owner_id = owner_map.get(pick.get("roster_id"))
+            round_num = pick.get("round")
+            pick_no = pick.get("pick_no")
+            pick_in_round = (
+                pick_no - (round_num - 1) * teams if pick_no and round_num and teams else None
+            )
             if pid and owner_id:
-                events.append({"player_id": str(pid), "owner_id": owner_id, "type": event_type, "week": -1})
+                events.append({
+                    "player_id": str(pid),
+                    "owner_id": owner_id,
+                    "type": event_type,
+                    "week": -1,
+                    "round": round_num,
+                    "pick": pick_in_round,
+                })
     return events
 
 
@@ -304,10 +324,21 @@ def get_season_acquisition_transaction_events(league_id, owner_map):
             if txn_type not in ("trade", "waiver", "free_agent"):
                 continue
             label = "trade" if txn_type == "trade" else "waiver"
+            # Only a processed waiver claim can carry a FAAB bid -- a
+            # free-agent add is zero-cost, first-come-first-served, so it's
+            # explicitly 0 rather than left blank (missing would read as
+            # "unknown cost" instead of "no cost").
+            faab = (txn.get("settings") or {}).get("waiver_bid") if txn_type == "waiver" else 0
             for pid, roster_id in (txn.get("adds") or {}).items():
                 owner_id = owner_map.get(roster_id)
                 if owner_id:
-                    events.append({"player_id": str(pid), "owner_id": owner_id, "type": label, "week": week})
+                    events.append({
+                        "player_id": str(pid),
+                        "owner_id": owner_id,
+                        "type": label,
+                        "week": week,
+                        "faab": faab,
+                    })
     return events
 
 
@@ -332,9 +363,10 @@ def build_acquisition_map(league_id):
     instead of slowing down the page every league loads on first render.
     """
     validate_league_id(league_id)
-    chain = get_league_chain(league_id)
-    if not chain:
+    settings = get_league_settings(league_id)
+    if not settings:
         raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+    chain = get_league_chain(league_id)
 
     all_events = []
     current_rosters = None
@@ -345,12 +377,23 @@ def build_acquisition_map(league_id):
 
         if is_current:
             rosters = get_rosters(season_league_id)
+            season_settings = settings
         else:
             rosters = _cached(
                 f"acq:{season_league_id}:rosters",
                 lambda lid=season_league_id: get_rosters(lid),
                 max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
             )
+            # Shares a cache key prefix with build_league_history()'s
+            # season-settings fetch, so a warm container that's already
+            # served a League History request for this league skips this
+            # fetch entirely.
+            season_settings = _cached(
+                f"history:{season_league_id}:settings",
+                lambda lid=season_league_id: get_league_settings(lid),
+                max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+            )
+        season_year = (season_settings or {}).get("season")
         owner_map = {r.get("roster_id"): r.get("owner_id") for r in (rosters or []) if r.get("roster_id") is not None}
 
         if is_current:
@@ -371,8 +414,10 @@ def build_acquisition_map(league_id):
 
         for e in draft_events:
             e["season_order"] = season_order
+            e["season"] = season_year
         for e in txn_events:
             e["season_order"] = season_order
+            e["season"] = season_year
         all_events.extend(draft_events)
         all_events.extend(txn_events)
 
@@ -406,10 +451,18 @@ def build_acquisition_map(league_id):
                 acquisitions[pid] = None
                 continue
             matching.sort(key=lambda e: (e["season_order"], e["week"]))
-            acquisitions[pid] = {
-                "type": ACQUISITION_LABELS.get(matching[-1]["type"]),
+            latest = matching[-1]
+            entry = {
+                "type": ACQUISITION_LABELS.get(latest["type"]),
                 "inherited": inherited,
+                "season": latest.get("season"),
             }
+            if latest["type"] in ("startup_draft", "rookie_draft"):
+                entry["round"] = latest.get("round")
+                entry["pick"] = latest.get("pick")
+            elif latest["type"] == "waiver":
+                entry["faab"] = latest.get("faab")
+            acquisitions[pid] = entry
 
     return {"league_id": league_id, "acquisitions": acquisitions}
 
