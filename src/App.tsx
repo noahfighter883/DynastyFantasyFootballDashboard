@@ -399,6 +399,7 @@ export default function App() {
             team={selectedTeam}
             cameFrom={cameFrom}
             initialPosFilter={initialPosFilter}
+            leagueId={leagueId}
           />
         )}
         {screen === "position" && (

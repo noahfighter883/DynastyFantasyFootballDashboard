@@ -228,6 +228,175 @@ def get_season_transaction_counts(league_id):
     return counts
 
 
+def get_drafts_for_league(league_id):
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/drafts")
+
+
+def get_draft_picks(draft_id):
+    return fetch_json(f"{SLEEPER_BASE_URL}/draft/{_urlsafe(draft_id)}/picks")
+
+
+ACQUISITION_LABELS = {
+    "startup_draft": "Startup Draft",
+    "rookie_draft": "Rookie Draft",
+    "trade": "Trade",
+    "waiver": "Waiver",
+}
+
+
+def get_season_draft_events(league_id, owner_map, is_startup_season):
+    """
+    Returns draft-pick events for one season as
+    [{"player_id", "owner_id", "type", "week"}, ...]. Sleeper doesn't
+    label a draft as "startup" vs "rookie" -- the oldest season in the
+    league's history is assumed to be the startup, everything after that
+    a rookie draft, which holds for the normal dynasty format this app
+    targets. Only completed drafts count, so an in-progress startup/rookie
+    draft doesn't get misread as a finished acquisition.
+    """
+    try:
+        drafts = get_drafts_for_league(league_id)
+    except (urllib.error.HTTPError, urllib.error.URLError):
+        return []
+
+    event_type = "startup_draft" if is_startup_season else "rookie_draft"
+    events = []
+    for d in drafts or []:
+        if d.get("status") != "complete":
+            continue
+        try:
+            picks = get_draft_picks(d.get("draft_id"))
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            continue
+        for pick in picks or []:
+            pid = pick.get("player_id")
+            owner_id = owner_map.get(pick.get("roster_id"))
+            if pid and owner_id:
+                events.append({"player_id": str(pid), "owner_id": owner_id, "type": event_type, "week": -1})
+    return events
+
+
+def get_season_acquisition_transaction_events(league_id, owner_map):
+    """
+    Same parallel per-week scan as get_season_transaction_counts(), but
+    returns individual player-add events (who got which player, and how)
+    instead of just per-roster counts -- what determine_acquisition() needs
+    to trace a specific player's history. Free-agent adds count as
+    "waiver" here (a zero-cost pickup is still "found on the wire", which
+    is what matters for acquisition history, unlike the trades/waivers
+    league-activity stat which deliberately excludes them).
+    """
+    def fetch(week):
+        try:
+            return get_transactions_for_week(league_id, week) or []
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            return []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_SEASON_WEEKS) as executor:
+        all_weeks = executor.map(fetch, range(1, MAX_SEASON_WEEKS + 1))
+
+    events = []
+    for week, week_txns in enumerate(all_weeks, start=1):
+        for txn in week_txns:
+            if txn.get("status") != "complete":
+                continue
+            txn_type = txn.get("type")
+            if txn_type not in ("trade", "waiver", "free_agent"):
+                continue
+            label = "trade" if txn_type == "trade" else "waiver"
+            for pid, roster_id in (txn.get("adds") or {}).items():
+                owner_id = owner_map.get(roster_id)
+                if owner_id:
+                    events.append({"player_id": str(pid), "owner_id": owner_id, "type": label, "week": week})
+    return events
+
+
+def build_acquisition_map(league_id):
+    """
+    Walks the full previous_league_id chain and determines how each
+    currently-rostered player ended up with their CURRENT owner: Startup
+    Draft, Rookie Draft, Trade, or Waiver. Returns
+    {"league_id", "acquisitions": {player_id: acquisition_type_or_None}}.
+
+    Matched against owner_id (a stable per-human Sleeper user_id), same
+    intentional choice as build_league_history(). If a roster was handed
+    to a different person without any trade/waiver ever explicitly moving
+    a given player to that new owner_id (e.g. a straight commissioner
+    reassignment of an existing roster), that player has no matching
+    event and comes back as None -- there's no transaction record of the
+    new owner actually acquiring them, so "unknown" is the honest answer
+    rather than a guess.
+
+    Deliberately kept off the main /api/league path (see api/league.py):
+    this is a full season-chain walk, so it's its own lazy-loaded endpoint
+    instead of slowing down the page every league loads on first render.
+    """
+    validate_league_id(league_id)
+    chain = get_league_chain(league_id)
+    if not chain:
+        raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+
+    all_events = []
+    current_rosters = None
+
+    for season_order, season_league_id in enumerate(chain):
+        is_current = season_league_id == league_id
+        is_startup_season = season_order == 0
+
+        if is_current:
+            rosters = get_rosters(season_league_id)
+        else:
+            rosters = _cached(
+                f"acq:{season_league_id}:rosters",
+                lambda lid=season_league_id: get_rosters(lid),
+                max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+            )
+        owner_map = {r.get("roster_id"): r.get("owner_id") for r in (rosters or []) if r.get("roster_id") is not None}
+
+        if is_current:
+            draft_events = get_season_draft_events(season_league_id, owner_map, is_startup_season)
+            txn_events = get_season_acquisition_transaction_events(season_league_id, owner_map)
+            current_rosters = rosters
+        else:
+            draft_events = _cached(
+                f"acq:{season_league_id}:drafts",
+                lambda lid=season_league_id, om=owner_map, s=is_startup_season: get_season_draft_events(lid, om, s),
+                max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+            )
+            txn_events = _cached(
+                f"acq:{season_league_id}:txn_events",
+                lambda lid=season_league_id, om=owner_map: get_season_acquisition_transaction_events(lid, om),
+                max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+            )
+
+        for e in draft_events:
+            e["season_order"] = season_order
+        for e in txn_events:
+            e["season_order"] = season_order
+        all_events.extend(draft_events)
+        all_events.extend(txn_events)
+
+    player_events = {}
+    for e in all_events:
+        player_events.setdefault(e["player_id"], []).append(e)
+
+    acquisitions = {}
+    for roster in current_rosters or []:
+        owner_id = roster.get("owner_id")
+        if not owner_id:
+            continue
+        for pid in (roster.get("players") or []):
+            pid = str(pid)
+            matching = [e for e in player_events.get(pid, []) if e["owner_id"] == owner_id]
+            if not matching:
+                acquisitions[pid] = None
+                continue
+            matching.sort(key=lambda e: (e["season_order"], e["week"]))
+            acquisitions[pid] = ACQUISITION_LABELS.get(matching[-1]["type"])
+
+    return {"league_id": league_id, "acquisitions": acquisitions}
+
+
 class UserNotFoundError(Exception):
     pass
 

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import type { Team, Player, Position, SortMetric } from '../types'
 import DraftCapitalChart from './DraftCapitalChart'
 
@@ -6,6 +6,19 @@ interface Props {
   team: Team
   cameFrom?: 'overview' | 'position' | 'feasibility'
   initialPosFilter?: Position | 'ALL'
+  // null in Demo League, which has no real Sleeper league to pull
+  // acquisition history from -- the ACQ column just stays empty then.
+  leagueId?: string | null
+}
+
+type AcquisitionType = 'Startup Draft' | 'Rookie Draft' | 'Trade' | 'Waiver'
+type AcquisitionMap = Record<string, AcquisitionType | null>
+
+function acquisitionStyle(type: AcquisitionType): { color: string; background: string } {
+  if (type === 'Startup Draft') return { color: '#818cf8', background: 'rgba(129,140,248,0.1)' }
+  if (type === 'Rookie Draft') return { color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }
+  if (type === 'Trade') return { color: '#fb923c', background: 'rgba(251,146,60,0.1)' }
+  return { color: '#34d399', background: 'rgba(52,211,153,0.08)' }
 }
 
 const POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE']
@@ -201,13 +214,38 @@ function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; s
   return <span style={{ color: '#3b82f6', fontSize: 10, marginLeft: 4 }}>{sortDir === 'asc' ? '↑' : '↓'}</span>
 }
 
-export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilter = 'ALL' }: Props) {
+export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilter = 'ALL', leagueId = null }: Props) {
   const [metric, setMetric] = useState<SortMetric>('dynasty')
   const [sortCol, setSortCol] = useState<SortCol>('isStarter')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>(initialPosFilter)
   const [chartMode, setChartMode] = useState<'dynasty' | 'redraft' | 'both'>('both')
   const [view, setView] = useState<'chart' | 'cards'>(cameFrom === 'position' ? 'cards' : 'chart')
+  const [acquisitions, setAcquisitions] = useState<AcquisitionMap | null>(null)
+
+  // Acquisition history requires walking the league's entire season chain,
+  // so it's fetched lazily here rather than bundled into the main league
+  // payload -- see api/acquisitions.py for why.
+  useEffect(() => {
+    if (!leagueId) {
+      setAcquisitions(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/acquisitions?league_id=${encodeURIComponent(leagueId)}`)
+        const body = await res.json()
+        if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`)
+        if (!cancelled) setAcquisitions(body.acquisitions as AcquisitionMap)
+      } catch {
+        if (!cancelled) setAcquisitions(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [leagueId])
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
@@ -486,7 +524,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px',
+              gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 110px',
               padding: '0 16px',
               borderBottom: '1px solid #232c47',
               background: '#0a0f1e',
@@ -512,11 +550,19 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
             <button onClick={() => handleSort('projectedPoints')} style={headerStyle('projectedPoints')}>
               PROJ PTS <SortIcon col="projectedPoints" sortCol={sortCol} sortDir={sortDir} />
             </button>
+            <span style={{ ...headerStyle('name'), cursor: 'default' }}>ACQUIRED</span>
           </div>
 
           {/* Player rows */}
           {sorted.map((player, idx) => (
-            <PlayerRow key={player.id} player={player} idx={idx} isLast={idx === sorted.length - 1} isPlus1={plus1Ids.has(player.id)} />
+            <PlayerRow
+              key={player.id}
+              player={player}
+              idx={idx}
+              isLast={idx === sorted.length - 1}
+              isPlus1={plus1Ids.has(player.id)}
+              acquisitionType={acquisitions ? acquisitions[player.id] ?? null : undefined}
+            />
           ))}
         </div>
       </div>
@@ -579,7 +625,20 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
   )
 }
 
-function PlayerRow({ player, idx, isLast, isPlus1 }: { player: Player; idx: number; isLast: boolean; isPlus1: boolean }) {
+function PlayerRow({
+  player,
+  idx,
+  isLast,
+  isPlus1,
+  acquisitionType,
+}: {
+  player: Player
+  idx: number
+  isLast: boolean
+  isPlus1: boolean
+  // undefined = still loading (or no league to check); null = loaded, no record found
+  acquisitionType?: AcquisitionType | null
+}) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -588,7 +647,7 @@ function PlayerRow({ player, idx, isLast, isPlus1 }: { player: Player; idx: numb
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'grid',
-        gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px',
+        gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 110px',
         padding: '11px 16px',
         borderBottom: isLast ? 'none' : '1px solid #1b2438',
         alignItems: 'center',
@@ -668,6 +727,29 @@ function PlayerRow({ player, idx, isLast, isPlus1 }: { player: Player; idx: numb
           <div style={{ fontSize: 10, color: '#4b5563', fontWeight: 400 }}>
             {player.position}{player.projectedPositionRank}
           </div>
+        )}
+      </div>
+
+      {/* Acquisition type -- undefined while loading (or no league to look
+          it up for), null once loaded with no matching record found */}
+      <div>
+        {acquisitionType && (
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.03em',
+              padding: '2px 7px',
+              borderRadius: 4,
+              fontFamily: 'JetBrains Mono, monospace',
+              ...acquisitionStyle(acquisitionType),
+            }}
+          >
+            {acquisitionType}
+          </span>
+        )}
+        {acquisitionType === null && (
+          <span style={{ fontSize: 11, color: '#374151', fontFamily: 'JetBrains Mono, monospace' }}>—</span>
         )}
       </div>
     </div>
