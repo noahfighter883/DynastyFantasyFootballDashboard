@@ -440,7 +440,7 @@ function AllTimeTable({
   )
 }
 
-const DETAIL_COLUMNS = '80px 1fr 90px 110px 130px 80px 80px'
+const DETAIL_COLUMNS = '80px 1fr 90px 110px 90px 100px 80px 80px'
 
 function OwnerDetail({ owner }: { owner: OwnerHistory }) {
   const seasonsDesc = [...owner.seasons].sort((a, b) => (b.season || '').localeCompare(a.season || ''))
@@ -466,7 +466,7 @@ function OwnerDetail({ owner }: { owner: OwnerHistory }) {
               alignItems: 'center',
             }}
           >
-            {['SEASON', 'TEAM NAME', 'FINISH', 'RECORD', 'PT DIFF', 'TRADES', 'WAIVERS'].map((h) => (
+            {['SEASON', 'TEAM NAME', 'FINISH', 'RECORD', 'PTS FOR', 'PTS AGAINST', 'TRADES', 'WAIVERS'].map((h) => (
               <span
                 key={h}
                 style={{
@@ -533,10 +533,19 @@ function OwnerDetail({ owner }: { owner: OwnerHistory }) {
                 style={{
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: 13,
-                  color: s.point_differential > 0 ? '#34d399' : s.point_differential < 0 ? '#f87171' : '#a0a6b8',
+                  color: s.point_differential > 0 ? '#34d399' : '#a0a6b8',
                 }}
               >
-                {s.point_differential > 0 ? `+${s.point_differential.toFixed(0)}` : s.point_differential.toFixed(0)}
+                {s.points_for.toFixed(1)}
+              </div>
+              <div
+                style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 13,
+                  color: s.point_differential < 0 ? '#f87171' : '#a0a6b8',
+                }}
+              >
+                {s.points_against.toFixed(1)}
               </div>
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
                 {s.trades}
