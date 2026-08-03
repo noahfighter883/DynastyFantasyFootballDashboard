@@ -6,9 +6,12 @@ export interface SeasonRecord {
   ties: number
   points_for: number
   points_against: number
+  point_differential: number
   made_playoffs: boolean
   playoff_team_count: number
   team_name: string
+  trades: number
+  waiver_adds: number
 }
 
 export interface OwnerHistory {
@@ -26,6 +29,9 @@ export interface OwnerHistory {
   ties: number
   points_for: number
   points_against: number
+  point_differential: number
+  trades: number
+  waiver_adds: number
   seasons: SeasonRecord[]
 }
 

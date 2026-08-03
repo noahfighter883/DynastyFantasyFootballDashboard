@@ -25,6 +25,7 @@ import math
 import os
 import re
 import time
+import concurrent.futures
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -179,6 +180,52 @@ def get_traded_picks(league_id):
 def get_winners_bracket(league_id):
     print("Fetching winners bracket...")
     return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/winners_bracket")
+
+
+def get_transactions_for_week(league_id, week):
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/transactions/{week}")
+
+
+# Sleeper has no "give me every transaction for this season" endpoint --
+# only per-week -- and a season can run up to 18 weeks (regular + playoffs).
+# Fetched in parallel since these are independent, I/O-bound requests;
+# sequential would mean up to 18 round trips per season.
+MAX_SEASON_WEEKS = 18
+
+
+def get_season_transaction_counts(league_id):
+    """
+    Returns {roster_id: {"trades": n, "waiver_adds": n}} for a season by
+    scanning every week's transaction log. Only "complete" transactions
+    count -- vetoed/failed ones are excluded. A trade increments every
+    roster involved; a waiver-won pickup increments the roster that won it.
+    Free-agent adds (no waiver process, first-come-first-served) aren't
+    counted as "waiver pickups" since that's specifically what was asked
+    for -- they're a different, zero-cost mechanic.
+    """
+    def fetch(week):
+        try:
+            return get_transactions_for_week(league_id, week) or []
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            return []
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_SEASON_WEEKS) as executor:
+        all_weeks = executor.map(fetch, range(1, MAX_SEASON_WEEKS + 1))
+
+    counts = {}
+    for week_txns in all_weeks:
+        for txn in week_txns:
+            if txn.get("status") != "complete":
+                continue
+            txn_type = txn.get("type")
+            if txn_type not in ("trade", "waiver"):
+                continue
+            field = "trades" if txn_type == "trade" else "waiver_adds"
+            for roster_id in (txn.get("roster_ids") or []):
+                counts.setdefault(roster_id, {"trades": 0, "waiver_adds": 0})
+                counts[roster_id][field] += 1
+
+    return counts
 
 
 class UserNotFoundError(Exception):
@@ -984,9 +1031,10 @@ def build_league_history(league_id):
     """
     Walks every past season of a Sleeper dynasty league (via
     previous_league_id) and aggregates each owner's career record: seasons
-    played, championships, playoff appearances, avg/best/worst finish, and
-    all-time win/loss/points record, plus a year-by-year breakdown per
-    owner for drill-down.
+    played, championships, playoff appearances, avg/best/worst finish,
+    all-time win/loss/points record and point differential, and total
+    trades/waiver pickups, plus a year-by-year breakdown per owner for
+    drill-down.
 
     Grouped by Sleeper's owner_id (a stable per-human user_id), not by
     roster_id or team name -- intentionally. If a roster changes hands to a
@@ -1051,6 +1099,16 @@ def build_league_history(league_id):
                     max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
                 )
 
+            transaction_counts = (
+                get_season_transaction_counts(season_league_id)
+                if is_current
+                else _cached(
+                    f"history:{season_league_id}:transactions",
+                    lambda lid=season_league_id: get_season_transaction_counts(lid),
+                    max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+                )
+            )
+
             if not season_settings or not rosters:
                 seasons_skipped_due_to_error.append(season_league_id)
                 continue
@@ -1067,6 +1125,11 @@ def build_league_history(league_id):
                 roster_settings = roster.get("settings") or {}
                 user = user_map.get(owner_id, {})
                 team_name = ((user.get("metadata") or {}).get("team_name")) or user.get("display_name") or "Unknown"
+                points_for = round(roster_settings.get("fpts", 0) + roster_settings.get("fpts_decimal", 0) / 100, 2)
+                points_against = round(
+                    roster_settings.get("fpts_against", 0) + roster_settings.get("fpts_against_decimal", 0) / 100, 2
+                )
+                roster_txn_counts = transaction_counts.get(roster_id, {"trades": 0, "waiver_adds": 0})
 
                 record = {
                     "season": season_year,
@@ -1074,13 +1137,14 @@ def build_league_history(league_id):
                     "wins": roster_settings.get("wins", 0),
                     "losses": roster_settings.get("losses", 0),
                     "ties": roster_settings.get("ties", 0),
-                    "points_for": round(roster_settings.get("fpts", 0) + roster_settings.get("fpts_decimal", 0) / 100, 2),
-                    "points_against": round(
-                        roster_settings.get("fpts_against", 0) + roster_settings.get("fpts_against_decimal", 0) / 100, 2
-                    ),
+                    "points_for": points_for,
+                    "points_against": points_against,
+                    "point_differential": round(points_for - points_against, 2),
                     "made_playoffs": placements.get(roster_id, 0) <= playoff_team_count,
                     "playoff_team_count": playoff_team_count,
                     "team_name": team_name,
+                    "trades": roster_txn_counts["trades"],
+                    "waiver_adds": roster_txn_counts["waiver_adds"],
                 }
                 owner_seasons.setdefault(owner_id, []).append(record)
                 owner_latest_info[owner_id] = {
@@ -1115,6 +1179,9 @@ def build_league_history(league_id):
                 "ties": sum(s["ties"] for s in seasons),
                 "points_for": round(sum(s["points_for"] for s in seasons), 2),
                 "points_against": round(sum(s["points_against"] for s in seasons), 2),
+                "point_differential": round(sum(s["point_differential"] for s in seasons), 2),
+                "trades": sum(s["trades"] for s in seasons),
+                "waiver_adds": sum(s["waiver_adds"] for s in seasons),
                 "seasons": seasons,
             }
         )

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ApiLeagueHistoryPayload, OwnerHistory } from '../data/leagueHistoryData'
 
 interface Props {
@@ -126,13 +126,100 @@ function PageHeader() {
         League History
       </h1>
       <p style={{ color: '#6b7280', fontSize: 13 }}>
-        All-time standings across every completed season · click any owner for a year-by-year breakdown
+        All-time standings across every completed season · click a column to sort · click any owner for a
+        year-by-year breakdown
       </p>
     </div>
   )
 }
 
-const COLUMNS = '44px 1fr 90px 90px 90px 130px 100px 90px'
+interface ColumnDef {
+  key: string
+  label: string
+  width: string
+  align?: 'right'
+  defaultDir: 'asc' | 'desc'
+  sortValue: (o: OwnerHistory) => number
+  render: (o: OwnerHistory) => React.ReactNode
+}
+
+const COLUMNS: ColumnDef[] = [
+  {
+    key: 'avg_finish',
+    label: 'AVG FINISH',
+    width: '90px',
+    defaultDir: 'asc',
+    sortValue: (o) => o.avg_finish ?? Infinity,
+    render: (o) => (o.avg_finish != null ? o.avg_finish.toFixed(1) : '—'),
+  },
+  {
+    key: 'championships',
+    label: 'TITLES',
+    width: '80px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.championships,
+    render: (o) => o.championships,
+  },
+  {
+    key: 'playoff_appearances',
+    label: 'PLAYOFFS',
+    width: '90px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.playoff_appearances,
+    render: (o) => `${o.playoff_appearances}/${o.seasons_played}`,
+  },
+  {
+    key: 'wins',
+    label: 'RECORD',
+    width: '100px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.wins,
+    render: (o) => `${o.wins}-${o.losses}${o.ties ? `-${o.ties}` : ''}`,
+  },
+  {
+    key: 'point_differential',
+    label: 'PT DIFF',
+    width: '100px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.point_differential,
+    render: (o) => (o.point_differential > 0 ? `+${o.point_differential.toFixed(0)}` : o.point_differential.toFixed(0)),
+  },
+  {
+    key: 'trades',
+    label: 'TRADES',
+    width: '80px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.trades,
+    render: (o) => o.trades,
+  },
+  {
+    key: 'waiver_adds',
+    label: 'WAIVERS',
+    width: '80px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.waiver_adds,
+    render: (o) => o.waiver_adds,
+  },
+  {
+    key: 'best_finish',
+    label: 'BEST/WORST',
+    width: '110px',
+    defaultDir: 'asc',
+    sortValue: (o) => o.best_finish ?? Infinity,
+    render: (o) =>
+      `${o.best_finish != null ? ordinal(o.best_finish) : '—'} / ${o.worst_finish != null ? ordinal(o.worst_finish) : '—'}`,
+  },
+  {
+    key: 'seasons_played',
+    label: 'SEASONS',
+    width: '90px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.seasons_played,
+    render: (o) => o.seasons_played,
+  },
+]
+
+const GRID_TEMPLATE = `44px 1fr ${COLUMNS.map((c) => c.width).join(' ')}`
 
 function AllTimeTable({
   owners,
@@ -141,36 +228,90 @@ function AllTimeTable({
   owners: OwnerHistory[]
   onSelectOwner: (id: string) => void
 }) {
+  const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'avg_finish', dir: 'asc' })
+
+  const sortedOwners = useMemo(() => {
+    const column = COLUMNS.find((c) => c.key === sort.key)
+    if (!column) return owners
+    const sign = sort.dir === 'asc' ? 1 : -1
+    return [...owners].sort((a, b) => sign * (column.sortValue(a) - column.sortValue(b)))
+  }, [owners, sort])
+
+  const toggleSort = (column: ColumnDef) => {
+    setSort((prev) =>
+      prev.key === column.key
+        ? { key: column.key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { key: column.key, dir: column.defaultDir }
+    )
+  }
+
   return (
     <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
-      <div style={{ minWidth: 760 }}>
+      <div style={{ minWidth: 980 }}>
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: COLUMNS,
+            gridTemplateColumns: GRID_TEMPLATE,
             padding: '10px 20px',
             borderBottom: '1px solid #232c47',
             gap: 16,
             alignItems: 'center',
           }}
         >
-          {['RK', 'TEAM / OWNER', 'AVG FINISH', 'TITLES', 'PLAYOFFS', 'RECORD', 'BEST/WORST', 'SEASONS'].map((h) => (
-            <span
-              key={h}
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                color: '#6b7280',
-                fontFamily: 'JetBrains Mono, monospace',
-              }}
-            >
-              {h}
-            </span>
-          ))}
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.08em',
+              color: '#6b7280',
+              fontFamily: 'JetBrains Mono, monospace',
+            }}
+          >
+            RK
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.08em',
+              color: '#6b7280',
+              fontFamily: 'JetBrains Mono, monospace',
+            }}
+          >
+            TEAM / OWNER
+          </span>
+          {COLUMNS.map((col) => {
+            const active = sort.key === col.key
+            return (
+              <button
+                key={col.key}
+                type="button"
+                onClick={() => toggleSort(col)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontSize: 10,
+                  fontWeight: 600,
+                  letterSpacing: '0.08em',
+                  color: active ? '#e2e4e9' : '#6b7280',
+                  fontFamily: 'JetBrains Mono, monospace',
+                }}
+              >
+                {col.label}
+                <span style={{ fontSize: 9, opacity: active ? 1 : 0.35 }}>
+                  {active ? (sort.dir === 'asc' ? '▲' : '▼') : '▲'}
+                </span>
+              </button>
+            )
+          })}
         </div>
 
-        {owners.map((owner, idx) => (
+        {sortedOwners.map((owner, idx) => (
           <button
             key={owner.owner_id}
             type="button"
@@ -178,11 +319,11 @@ function AllTimeTable({
             className="row-enter"
             style={{
               display: 'grid',
-              gridTemplateColumns: COLUMNS,
+              gridTemplateColumns: GRID_TEMPLATE,
               width: '100%',
               padding: '14px 20px',
               border: 'none',
-              borderBottom: idx < owners.length - 1 ? '1px solid #1b2438' : 'none',
+              borderBottom: idx < sortedOwners.length - 1 ? '1px solid #1b2438' : 'none',
               background: 'transparent',
               gap: 16,
               alignItems: 'center',
@@ -218,29 +359,27 @@ function AllTimeTable({
               <div style={{ fontSize: 12, color: '#6b7280' }}>{owner.display_name}</div>
             </div>
 
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, color: '#e2e4e9' }}>
-              {owner.avg_finish != null ? owner.avg_finish.toFixed(1) : '—'}
-            </div>
-
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, color: owner.championships > 0 ? '#fbbf24' : '#4b5563' }}>
-              {owner.championships}
-            </div>
-
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, color: '#a0a6b8' }}>
-              {owner.playoff_appearances}/{owner.seasons_played}
-            </div>
-
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
-              {owner.wins}-{owner.losses}{owner.ties ? `-${owner.ties}` : ''}
-            </div>
-
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6b7280' }}>
-              {owner.best_finish != null ? ordinal(owner.best_finish) : '—'} / {owner.worst_finish != null ? ordinal(owner.worst_finish) : '—'}
-            </div>
-
-            <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
-              {owner.seasons_played}
-            </div>
+            {COLUMNS.map((col) => (
+              <div
+                key={col.key}
+                style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 13,
+                  color:
+                    col.key === 'championships' && owner.championships > 0
+                      ? '#fbbf24'
+                      : col.key === 'point_differential'
+                        ? owner.point_differential > 0
+                          ? '#34d399'
+                          : owner.point_differential < 0
+                            ? '#f87171'
+                            : '#a0a6b8'
+                        : '#a0a6b8',
+                }}
+              >
+                {col.render(owner)}
+              </div>
+            ))}
           </button>
         ))}
       </div>
@@ -248,7 +387,7 @@ function AllTimeTable({
   )
 }
 
-const DETAIL_COLUMNS = '80px 1fr 100px 120px 140px'
+const DETAIL_COLUMNS = '80px 1fr 90px 110px 130px 80px 80px'
 
 function OwnerDetail({ owner, onBack }: { owner: OwnerHistory; onBack: () => void }) {
   const seasonsDesc = [...owner.seasons].sort((a, b) => (b.season || '').localeCompare(a.season || ''))
@@ -283,7 +422,7 @@ function OwnerDetail({ owner, onBack }: { owner: OwnerHistory; onBack: () => voi
       </div>
 
       <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
-        <div style={{ minWidth: 560 }}>
+        <div style={{ minWidth: 680 }}>
           <div
             style={{
               display: 'grid',
@@ -294,7 +433,7 @@ function OwnerDetail({ owner, onBack }: { owner: OwnerHistory; onBack: () => voi
               alignItems: 'center',
             }}
           >
-            {['SEASON', 'TEAM NAME', 'FINISH', 'RECORD', 'PTS FOR/AGAINST'].map((h) => (
+            {['SEASON', 'TEAM NAME', 'FINISH', 'RECORD', 'PT DIFF', 'TRADES', 'WAIVERS'].map((h) => (
               <span
                 key={h}
                 style={{
@@ -339,8 +478,20 @@ function OwnerDetail({ owner, onBack }: { owner: OwnerHistory; onBack: () => voi
               <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
                 {s.wins}-{s.losses}{s.ties ? `-${s.ties}` : ''}
               </div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6b7280' }}>
-                {s.points_for.toFixed(1)} / {s.points_against.toFixed(1)}
+              <div
+                style={{
+                  fontFamily: 'JetBrains Mono, monospace',
+                  fontSize: 13,
+                  color: s.point_differential > 0 ? '#34d399' : s.point_differential < 0 ? '#f87171' : '#a0a6b8',
+                }}
+              >
+                {s.point_differential > 0 ? `+${s.point_differential.toFixed(0)}` : s.point_differential.toFixed(0)}
+              </div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
+                {s.trades}
+              </div>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
+                {s.waiver_adds}
               </div>
             </div>
           ))}
