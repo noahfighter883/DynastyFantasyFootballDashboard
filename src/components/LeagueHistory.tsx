@@ -3,6 +3,8 @@ import type { ApiLeagueHistoryPayload, OwnerHistory } from '../data/leagueHistor
 
 interface Props {
   leagueId: string
+  selectedOwnerId: string | null
+  onSelectOwner: (id: string | null) => void
 }
 
 type HistoryState =
@@ -21,14 +23,13 @@ function ordinal(n: number): string {
   }
 }
 
-export default function LeagueHistory({ leagueId }: Props) {
+export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner }: Props) {
   const [state, setState] = useState<HistoryState>({ status: 'loading' })
-  const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
     setState({ status: 'loading' })
-    setSelectedOwnerId(null)
+    onSelectOwner(null)
 
     ;(async () => {
       try {
@@ -102,9 +103,9 @@ export default function LeagueHistory({ leagueId }: Props) {
       )}
 
       {selectedOwner ? (
-        <OwnerDetail owner={selectedOwner} onBack={() => setSelectedOwnerId(null)} />
+        <OwnerDetail owner={selectedOwner} />
       ) : (
-        <AllTimeTable owners={payload.owners} onSelectOwner={setSelectedOwnerId} />
+        <AllTimeTable owners={payload.owners} onSelectOwner={onSelectOwner} />
       )}
     </div>
   )
@@ -389,31 +390,11 @@ function AllTimeTable({
 
 const DETAIL_COLUMNS = '80px 1fr 90px 110px 130px 80px 80px'
 
-function OwnerDetail({ owner, onBack }: { owner: OwnerHistory; onBack: () => void }) {
+function OwnerDetail({ owner }: { owner: OwnerHistory }) {
   const seasonsDesc = [...owner.seasons].sort((a, b) => (b.season || '').localeCompare(a.season || ''))
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={onBack}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          fontSize: 12,
-          color: '#6b7280',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: 0,
-          marginBottom: 16,
-          fontFamily: 'inherit',
-        }}
-      >
-        ← Back to all-time standings
-      </button>
-
       <div style={{ marginBottom: 20 }}>
         <div style={{ fontWeight: 600, fontSize: 18, letterSpacing: '-0.01em', marginBottom: 2 }}>
           {owner.team_name}

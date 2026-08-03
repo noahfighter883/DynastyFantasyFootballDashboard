@@ -43,6 +43,7 @@ export default function App() {
   const [initialPosFilter, setInitialPosFilter] = useState<
     Position | "ALL"
   >("ALL");
+  const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
 
   // Fetches a JSON API response, treating a non-JSON body (e.g. a gateway
   // error page) as its own distinct failure rather than an unreadable crash.
@@ -74,6 +75,7 @@ export default function App() {
       window.history.replaceState(null, "", url);
       setScreen("overview");
       setSelectedTeamId(null);
+      setSelectedOwnerId(null);
       setLoad({ status: "ready", teams, season: payload.season, isDemo: false, leagueId });
     } catch (e) {
       setLoad({
@@ -210,10 +212,14 @@ export default function App() {
               minWidth: 0,
             }}
           >
-            {/* Back button -- only visible on the team detail screen, sits at the far left */}
-            {screen === "team" && selectedTeam && (
+            {/* Back button -- visible on the team detail screen, or the
+                League History owner drill-down, sits at the far left */}
+            {((screen === "team" && selectedTeam) ||
+              (screen === "history" && selectedOwnerId)) && (
               <button
-                onClick={goBack}
+                onClick={
+                  screen === "team" ? goBack : () => setSelectedOwnerId(null)
+                }
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -408,7 +414,11 @@ export default function App() {
           />
         )}
         {screen === "history" && leagueId && (
-          <LeagueHistory leagueId={leagueId} />
+          <LeagueHistory
+            leagueId={leagueId}
+            selectedOwnerId={selectedOwnerId}
+            onSelectOwner={setSelectedOwnerId}
+          />
         )}
       </main>
 
