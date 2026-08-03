@@ -138,25 +138,45 @@ interface ColumnDef {
   key: string
   label: string
   width: string
-  align?: 'right'
+  description: string
+  // Draws a divider before this column, marking the start of a new group
+  // (standings vs. league-activity stats) so the wall of numbers reads as
+  // two sections instead of one flat list.
+  groupStart?: boolean
   defaultDir: 'asc' | 'desc'
   sortValue: (o: OwnerHistory) => number
   render: (o: OwnerHistory) => React.ReactNode
 }
 
+// Ordered as two groups: final standings (how a team actually did), then
+// league activity (how active a manager was in trades/waivers). Grouping
+// related columns together, rather than interleaving them, makes the wide
+// table easier to scan.
 const COLUMNS: ColumnDef[] = [
   {
     key: 'avg_finish',
     label: 'AVG FINISH',
     width: '90px',
+    description: 'Average final standing across every completed season (1 = best)',
     defaultDir: 'asc',
     sortValue: (o) => o.avg_finish ?? Infinity,
     render: (o) => (o.avg_finish != null ? o.avg_finish.toFixed(1) : '—'),
   },
   {
+    key: 'best_finish',
+    label: 'BEST/WORST',
+    width: '110px',
+    description: 'Best and worst final standing in a single season',
+    defaultDir: 'asc',
+    sortValue: (o) => o.best_finish ?? Infinity,
+    render: (o) =>
+      `${o.best_finish != null ? ordinal(o.best_finish) : '—'} / ${o.worst_finish != null ? ordinal(o.worst_finish) : '—'}`,
+  },
+  {
     key: 'championships',
     label: 'TITLES',
     width: '80px',
+    description: 'Championships won (1st place after the playoff bracket)',
     defaultDir: 'desc',
     sortValue: (o) => o.championships,
     render: (o) => o.championships,
@@ -165,6 +185,7 @@ const COLUMNS: ColumnDef[] = [
     key: 'regular_season_titles',
     label: '#1 SEEDS',
     width: '90px',
+    description: 'Seasons finished with the best regular-season record (before playoffs) -- a separate honor from winning the title',
     defaultDir: 'desc',
     sortValue: (o) => o.regular_season_titles,
     render: (o) => o.regular_season_titles,
@@ -173,6 +194,7 @@ const COLUMNS: ColumnDef[] = [
     key: 'playoff_appearances',
     label: 'PLAYOFFS',
     width: '90px',
+    description: 'Playoff appearances out of seasons played',
     defaultDir: 'desc',
     sortValue: (o) => o.playoff_appearances,
     render: (o) => `${o.playoff_appearances}/${o.seasons_played}`,
@@ -181,6 +203,7 @@ const COLUMNS: ColumnDef[] = [
     key: 'wins',
     label: 'RECORD',
     width: '100px',
+    description: 'All-time regular-season win-loss record',
     defaultDir: 'desc',
     sortValue: (o) => o.wins,
     render: (o) => `${o.wins}-${o.losses}${o.ties ? `-${o.ties}` : ''}`,
@@ -189,14 +212,26 @@ const COLUMNS: ColumnDef[] = [
     key: 'point_differential',
     label: 'PT DIFF',
     width: '100px',
+    description: 'All-time points scored minus points allowed',
     defaultDir: 'desc',
     sortValue: (o) => o.point_differential,
     render: (o) => (o.point_differential > 0 ? `+${o.point_differential.toFixed(0)}` : o.point_differential.toFixed(0)),
   },
   {
+    key: 'seasons_played',
+    label: 'SEASONS',
+    width: '90px',
+    description: 'Seasons this owner has been in the league',
+    defaultDir: 'desc',
+    sortValue: (o) => o.seasons_played,
+    render: (o) => o.seasons_played,
+  },
+  {
     key: 'trades',
     label: 'TRADES',
     width: '80px',
+    description: 'All-time completed trades',
+    groupStart: true,
     defaultDir: 'desc',
     sortValue: (o) => o.trades,
     render: (o) => o.trades,
@@ -205,26 +240,10 @@ const COLUMNS: ColumnDef[] = [
     key: 'waiver_adds',
     label: 'WAIVERS',
     width: '80px',
+    description: 'All-time waiver-won pickups (not including free-agent adds)',
     defaultDir: 'desc',
     sortValue: (o) => o.waiver_adds,
     render: (o) => o.waiver_adds,
-  },
-  {
-    key: 'best_finish',
-    label: 'BEST/WORST',
-    width: '110px',
-    defaultDir: 'asc',
-    sortValue: (o) => o.best_finish ?? Infinity,
-    render: (o) =>
-      `${o.best_finish != null ? ordinal(o.best_finish) : '—'} / ${o.worst_finish != null ? ordinal(o.worst_finish) : '—'}`,
-  },
-  {
-    key: 'seasons_played',
-    label: 'SEASONS',
-    width: '90px',
-    defaultDir: 'desc',
-    sortValue: (o) => o.seasons_played,
-    render: (o) => o.seasons_played,
   },
 ]
 
@@ -255,6 +274,7 @@ function AllTimeTable({
   }
 
   return (
+    <>
     <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
       <div style={{ minWidth: 980 }}>
         <div
@@ -295,6 +315,7 @@ function AllTimeTable({
               <button
                 key={col.key}
                 type="button"
+                title={col.description}
                 onClick={() => toggleSort(col)}
                 style={{
                   display: 'flex',
@@ -302,7 +323,9 @@ function AllTimeTable({
                   gap: 3,
                   background: 'none',
                   border: 'none',
-                  padding: 0,
+                  borderLeft: col.groupStart ? '1px solid #232c47' : 'none',
+                  paddingLeft: col.groupStart ? 16 : 0,
+                  marginLeft: col.groupStart ? -16 : 0,
                   cursor: 'pointer',
                   fontSize: 10,
                   fontWeight: 600,
@@ -374,6 +397,9 @@ function AllTimeTable({
                 style={{
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: 13,
+                  borderLeft: col.groupStart ? '1px solid #1b2438' : 'none',
+                  paddingLeft: col.groupStart ? 16 : 0,
+                  marginLeft: col.groupStart ? -16 : 0,
                   color:
                     col.key === 'championships' && owner.championships > 0
                       ? '#fbbf24'
@@ -392,7 +418,25 @@ function AllTimeTable({
           </button>
         ))}
       </div>
-    </div>
+      </div>
+
+      <div
+        style={{
+          marginTop: 16,
+          display: 'flex',
+          gap: 20,
+          flexWrap: 'wrap',
+          fontSize: 11,
+          color: '#4b5563',
+          fontFamily: 'JetBrains Mono, monospace',
+        }}
+      >
+        <span>TITLES = won it all · #1 SEEDS = best regular-season record · PT DIFF = points for − against</span>
+        <span style={{ marginLeft: 'auto' }}>
+          Owners tracked individually — a roster that changed hands shows as separate rows
+        </span>
+      </div>
+    </>
   )
 }
 
