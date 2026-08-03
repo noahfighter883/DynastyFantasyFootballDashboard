@@ -573,7 +573,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
           ))}
         </div>
       </div>
-      {acquisitions && Object.values(acquisitions).some((a) => a?.inherited) && (
+      {acquisitions && team.players.some((p) => acquisitions[p.id]?.inherited) && (
         <p style={{ marginTop: 8, fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace' }}>
           * inferred from a previous manager -- this roster changed hands and no trade/waiver ever moved this
           player to the current owner directly
