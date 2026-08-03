@@ -310,6 +310,13 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
             borderBottom: '1px solid #232c47',
             gap: 16,
             alignItems: 'center',
+            position: 'sticky',
+            // Sits just below the app's own sticky top nav (53px tall,
+            // z-index 50) so both stay visible while scrolling this long
+            // table instead of the column labels sliding under the nav.
+            top: 53,
+            zIndex: 10,
+            background: '#131a2b',
           }}
         >
           <span
