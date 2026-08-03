@@ -9,6 +9,8 @@ export interface SeasonRecord {
   point_differential: number
   made_playoffs: boolean
   playoff_team_count: number
+  regular_season_rank: number | null
+  won_regular_season: boolean
   team_name: string
   trades: number
   waiver_adds: number
@@ -20,6 +22,7 @@ export interface OwnerHistory {
   team_name: string
   seasons_played: number
   championships: number
+  regular_season_titles: number
   playoff_appearances: number
   avg_finish: number | null
   best_finish: number | null

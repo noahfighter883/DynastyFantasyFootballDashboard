@@ -162,6 +162,14 @@ const COLUMNS: ColumnDef[] = [
     render: (o) => o.championships,
   },
   {
+    key: 'regular_season_titles',
+    label: '#1 SEEDS',
+    width: '90px',
+    defaultDir: 'desc',
+    sortValue: (o) => o.regular_season_titles,
+    render: (o) => o.regular_season_titles,
+  },
+  {
     key: 'playoff_appearances',
     label: 'PLAYOFFS',
     width: '90px',
@@ -456,8 +464,26 @@ function OwnerDetail({ owner }: { owner: OwnerHistory }) {
               >
                 {s.placement != null ? ordinal(s.placement) : '—'}
               </div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
-                {s.wins}-{s.losses}{s.ties ? `-${s.ties}` : ''}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, color: '#a0a6b8' }}>
+                  {s.wins}-{s.losses}{s.ties ? `-${s.ties}` : ''}
+                </span>
+                {s.won_regular_season && (
+                  <span
+                    title="Regular season #1 seed"
+                    style={{
+                      fontFamily: 'JetBrains Mono, monospace',
+                      fontSize: 10,
+                      fontWeight: 600,
+                      color: '#fbbf24',
+                      border: '1px solid #4a3f1a',
+                      borderRadius: 3,
+                      padding: '1px 4px',
+                    }}
+                  >
+                    #1 SEED
+                  </span>
+                )}
               </div>
               <div
                 style={{

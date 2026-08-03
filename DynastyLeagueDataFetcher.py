@@ -1027,6 +1027,26 @@ def compute_season_placements(rosters, winners_bracket):
     return placements, playoff_team_count
 
 
+def compute_regular_season_ranks(rosters):
+    """
+    Ranks every roster by regular-season record alone (wins desc, then
+    points-for desc as tiebreak), independent of playoff results. Rank 1
+    is the regular-season #1 seed -- a distinct honor from winning it all,
+    since the playoff bracket can crown a different champion.
+
+    Returns {roster_id: rank}.
+    """
+    ordered = sorted(
+        rosters,
+        key=lambda r: (
+            (r.get("settings") or {}).get("wins", 0),
+            (r.get("settings") or {}).get("fpts", 0),
+        ),
+        reverse=True,
+    )
+    return {roster["roster_id"]: i + 1 for i, roster in enumerate(ordered)}
+
+
 def build_league_history(league_id):
     """
     Walks every past season of a Sleeper dynasty league (via
@@ -1116,6 +1136,7 @@ def build_league_history(league_id):
             season_year = season_settings.get("season")
             user_map = {u["user_id"]: u for u in (users or [])}
             placements, playoff_team_count = compute_season_placements(rosters, bracket)
+            regular_season_ranks = compute_regular_season_ranks(rosters)
 
             for roster in rosters:
                 owner_id = roster.get("owner_id")
@@ -1142,6 +1163,8 @@ def build_league_history(league_id):
                     "point_differential": round(points_for - points_against, 2),
                     "made_playoffs": placements.get(roster_id, 0) <= playoff_team_count,
                     "playoff_team_count": playoff_team_count,
+                    "regular_season_rank": regular_season_ranks.get(roster_id),
+                    "won_regular_season": regular_season_ranks.get(roster_id) == 1,
                     "team_name": team_name,
                     "trades": roster_txn_counts["trades"],
                     "waiver_adds": roster_txn_counts["waiver_adds"],
@@ -1170,6 +1193,7 @@ def build_league_history(league_id):
                 "team_name": info["team_name"],
                 "seasons_played": len(seasons),
                 "championships": sum(1 for p in placements_list if p == 1),
+                "regular_season_titles": sum(1 for s in seasons if s["won_regular_season"]),
                 "playoff_appearances": sum(1 for s in seasons if s["made_playoffs"]),
                 "avg_finish": round(sum(placements_list) / len(placements_list), 2) if placements_list else None,
                 "best_finish": min(placements_list) if placements_list else None,
