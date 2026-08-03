@@ -95,6 +95,13 @@ button {
 }
 .table-scroll {
   overflow-x: auto;
+  /* Explicit, not left to default -- setting only overflow-x makes browsers
+     implicitly compute overflow-y as "auto" too, which turns this element
+     into a scroll container and becomes position:sticky's containing block
+     instead of the page. That silently breaks any sticky header inside
+     (it "sticks" to this box, which doesn't itself scroll, so it never
+     visibly moves). */
+  overflow-y: visible;
   -webkit-overflow-scrolling: touch;
 }
 
