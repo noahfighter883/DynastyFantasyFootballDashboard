@@ -8,7 +8,6 @@ import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
 import FeasibilityComparison from "./components/FeasibilityComparison";
-import TradeAnalyzer from "./components/TradeAnalyzer";
 import LeagueEntry from "./components/LeagueEntry";
 import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
 import type { Screen, Position, Team } from "./types";
@@ -305,10 +304,6 @@ export default function App() {
                   id: "feasibility",
                   label: "Feasibility",
                 },
-                {
-                  id: "trade",
-                  label: "Trade Analyzer",
-                },
               ] as { id: Screen; label: string }[]
             ).map(({ id, label }) => (
               <button
@@ -410,11 +405,10 @@ export default function App() {
             onSelectTeam={goToTeam}
           />
         )}
-        {screen === "trade" && <TradeAnalyzer teams={teams} />}
       </main>
 
       {/* How it works */}
-      {screen !== "feasibility" && screen !== "trade" && (
+      {screen !== "feasibility" && (
         <footer
           style={{
             borderTop: "1px solid #232c47",
