@@ -25,6 +25,7 @@ import math
 import os
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -94,13 +95,18 @@ _MEMORY_CACHE = {}
 MEMORY_CACHE_MAX_AGE_SECONDS = 6 * 3600
 
 
-def _cached(key, fetch_fn):
+def _cached(key, fetch_fn, max_age_seconds=MEMORY_CACHE_MAX_AGE_SECONDS):
     entry = _MEMORY_CACHE.get(key)
-    if entry and (time.time() - entry["fetched_at"]) < MEMORY_CACHE_MAX_AGE_SECONDS:
+    if entry and (time.time() - entry["fetched_at"]) < max_age_seconds:
         return entry["data"]
     data = fetch_fn()
     _MEMORY_CACHE[key] = {"data": data, "fetched_at": time.time()}
     return data
+
+
+# Completed seasons are immutable -- a much longer TTL is safe for them,
+# unlike the current (possibly still in-progress) season.
+HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS = 24 * 3600
 
 # Fantasy Football Calculator ADP endpoints (free, no auth, official JSON API).
 # "dynasty" = startup dynasty ADP (whole-roster, not rookie-only).
@@ -168,6 +174,11 @@ def get_league_settings(league_id):
 def get_traded_picks(league_id):
     print("Fetching traded picks...")
     return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/traded_picks")
+
+
+def get_winners_bracket(league_id):
+    print("Fetching winners bracket...")
+    return fetch_json(f"{SLEEPER_BASE_URL}/league/{_urlsafe(league_id)}/winners_bracket")
 
 
 class UserNotFoundError(Exception):
@@ -893,6 +904,230 @@ def build_joined_dataset(league_id=DEFAULT_LEAGUE_ID, season=None):
         "rankings": rankings,
     }
     return output, unmatched_value, unmatched_projection
+
+
+# ---------------------------------------------------------------------------
+# League history (all-time standings across seasons)
+# ---------------------------------------------------------------------------
+
+def get_league_chain(league_id):
+    """
+    Walks Sleeper's previous_league_id backward from league_id, returning
+    every season's league_id oldest-first (including the starting one).
+    Each season is a separate league_id in Sleeper's model, chained together
+    this way. Stops at the oldest season (previous_league_id missing/None/
+    "0") or on the first fetch failure -- a transient error on an older
+    season truncates the chain rather than failing the whole walk, so the
+    caller still gets everything successfully found before that point.
+    """
+    chain = []
+    current_id = league_id
+    while current_id and current_id != "0":
+        try:
+            settings = get_league_settings(current_id)
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            print(f"  -> stopped walking league history at {current_id!r}: {e}")
+            break
+        if not settings:
+            break
+        chain.append(current_id)
+        current_id = settings.get("previous_league_id")
+    chain.reverse()
+    return chain
+
+
+def compute_season_placements(rosters, winners_bracket):
+    """
+    Determines each roster's final placement for a season by combining the
+    playoff bracket (authoritative for anyone who made the playoffs) with
+    regular-season record as a tiebreak/fallback for anyone who didn't.
+
+    Sleeper's winners_bracket is a flat list of matchups; only entries
+    carrying a "p" key decide placement (p=1 is the championship game --
+    winner takes 1st, loser 2nd; p=3 is the third-place game -- winner takes
+    3rd, loser 4th; and so on). Rosters that never appear in a placement
+    game (missed the playoffs) are ranked after every placed team, ordered
+    by regular-season wins then points-for.
+
+    Returns (placements, playoff_team_count) where placements is
+    {roster_id: placement} covering every roster passed in.
+    """
+    placements = {}
+    for game in winners_bracket or []:
+        p = game.get("p")
+        w = game.get("w")
+        l = game.get("l")
+        if p is None or w is None or l is None:
+            continue
+        placements[w] = p
+        placements[l] = p + 1
+
+    playoff_team_count = len(placements)
+
+    unplaced = [r for r in rosters if r.get("roster_id") not in placements]
+    unplaced.sort(
+        key=lambda r: (
+            (r.get("settings") or {}).get("wins", 0),
+            (r.get("settings") or {}).get("fpts", 0),
+        ),
+        reverse=True,
+    )
+    next_place = playoff_team_count + 1
+    for roster in unplaced:
+        placements[roster["roster_id"]] = next_place
+        next_place += 1
+
+    return placements, playoff_team_count
+
+
+def build_league_history(league_id):
+    """
+    Walks every past season of a Sleeper dynasty league (via
+    previous_league_id) and aggregates each owner's career record: seasons
+    played, championships, playoff appearances, avg/best/worst finish, and
+    all-time win/loss/points record, plus a year-by-year breakdown per
+    owner for drill-down.
+
+    Grouped by Sleeper's owner_id (a stable per-human user_id), not by
+    roster_id or team name -- intentionally. If a roster changes hands to a
+    different person partway through the league's history, that correctly
+    produces two separate owner records rather than one blended "team"
+    lineage, since the stats describe a person's career, not a roster
+    slot's.
+
+    The current (most recent) season is excluded from the aggregated stats
+    if it isn't complete yet -- no bracket exists to determine a real
+    placement -- and reported separately via current_season_excluded so the
+    frontend can note it without needing a fetch of its own.
+    """
+    validate_league_id(league_id)
+
+    settings = get_league_settings(league_id)
+    if not settings:
+        raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+
+    chain = get_league_chain(league_id)
+
+    # get_league_chain() always ends the chain at league_id itself (the
+    # settings for which were already fetched above), so the head of the
+    # chain never needs a second fetch.
+    current_season_excluded = None
+    if chain and chain[-1] == league_id and settings.get("status") != "complete":
+        current_season_excluded = settings.get("season")
+        chain = chain[:-1]
+
+    seasons_included = []
+    seasons_skipped_due_to_error = []
+    owner_seasons = {}
+    owner_latest_info = {}
+
+    for season_league_id in chain:
+        is_current = season_league_id == league_id
+        try:
+            if is_current:
+                season_settings = settings
+                rosters = get_rosters(season_league_id)
+                users = get_users(season_league_id)
+                bracket = get_winners_bracket(season_league_id)
+            else:
+                season_settings = _cached(
+                    f"history:{season_league_id}:settings",
+                    lambda lid=season_league_id: get_league_settings(lid),
+                    max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+                )
+                rosters = _cached(
+                    f"history:{season_league_id}:rosters",
+                    lambda lid=season_league_id: get_rosters(lid),
+                    max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+                )
+                users = _cached(
+                    f"history:{season_league_id}:users",
+                    lambda lid=season_league_id: get_users(lid),
+                    max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+                )
+                bracket = _cached(
+                    f"history:{season_league_id}:bracket",
+                    lambda lid=season_league_id: get_winners_bracket(lid),
+                    max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+                )
+
+            if not season_settings or not rosters:
+                seasons_skipped_due_to_error.append(season_league_id)
+                continue
+
+            season_year = season_settings.get("season")
+            user_map = {u["user_id"]: u for u in (users or [])}
+            placements, playoff_team_count = compute_season_placements(rosters, bracket)
+
+            for roster in rosters:
+                owner_id = roster.get("owner_id")
+                if not owner_id:
+                    continue
+                roster_id = roster.get("roster_id")
+                roster_settings = roster.get("settings") or {}
+                user = user_map.get(owner_id, {})
+                team_name = ((user.get("metadata") or {}).get("team_name")) or user.get("display_name") or "Unknown"
+
+                record = {
+                    "season": season_year,
+                    "placement": placements.get(roster_id),
+                    "wins": roster_settings.get("wins", 0),
+                    "losses": roster_settings.get("losses", 0),
+                    "ties": roster_settings.get("ties", 0),
+                    "points_for": round(roster_settings.get("fpts", 0) + roster_settings.get("fpts_decimal", 0) / 100, 2),
+                    "points_against": round(
+                        roster_settings.get("fpts_against", 0) + roster_settings.get("fpts_against_decimal", 0) / 100, 2
+                    ),
+                    "made_playoffs": placements.get(roster_id, 0) <= playoff_team_count,
+                    "playoff_team_count": playoff_team_count,
+                    "team_name": team_name,
+                }
+                owner_seasons.setdefault(owner_id, []).append(record)
+                owner_latest_info[owner_id] = {
+                    "display_name": user.get("display_name") or "Unknown",
+                    "team_name": team_name,
+                }
+
+            seasons_included.append(season_year)
+        except (urllib.error.HTTPError, urllib.error.URLError) as e:
+            print(f"  -> skipping season {season_league_id!r} in league history: {e}")
+            seasons_skipped_due_to_error.append(season_league_id)
+            continue
+
+    owners = []
+    for owner_id, seasons in owner_seasons.items():
+        seasons.sort(key=lambda s: s["season"] or "")
+        placements_list = [s["placement"] for s in seasons if s["placement"] is not None]
+        info = owner_latest_info.get(owner_id, {"display_name": "Unknown", "team_name": "Unknown"})
+        owners.append(
+            {
+                "owner_id": owner_id,
+                "display_name": info["display_name"],
+                "team_name": info["team_name"],
+                "seasons_played": len(seasons),
+                "championships": sum(1 for p in placements_list if p == 1),
+                "playoff_appearances": sum(1 for s in seasons if s["made_playoffs"]),
+                "avg_finish": round(sum(placements_list) / len(placements_list), 2) if placements_list else None,
+                "best_finish": min(placements_list) if placements_list else None,
+                "worst_finish": max(placements_list) if placements_list else None,
+                "wins": sum(s["wins"] for s in seasons),
+                "losses": sum(s["losses"] for s in seasons),
+                "ties": sum(s["ties"] for s in seasons),
+                "points_for": round(sum(s["points_for"] for s in seasons), 2),
+                "points_against": round(sum(s["points_against"] for s in seasons), 2),
+                "seasons": seasons,
+            }
+        )
+
+    owners.sort(key=lambda o: (o["avg_finish"] if o["avg_finish"] is not None else float("inf")))
+
+    return {
+        "league_id": league_id,
+        "seasons_included": seasons_included,
+        "current_season_excluded": current_season_excluded,
+        "seasons_skipped_due_to_error": seasons_skipped_due_to_error,
+        "owners": owners,
+    }
 
 
 def run_cli(league_id=DEFAULT_LEAGUE_ID, season=None):

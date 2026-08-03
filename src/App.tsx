@@ -8,6 +8,7 @@ import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
 import FeasibilityComparison from "./components/FeasibilityComparison";
+import LeagueHistory from "./components/LeagueHistory";
 import LeagueEntry from "./components/LeagueEntry";
 import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
 import type { Screen, Position, Team } from "./types";
@@ -28,7 +29,7 @@ type LoadState =
   | { status: "loading" }
   | { status: "picking"; username: string; leagues: LeagueSummary[] }
   | { status: "error"; message: string }
-  | { status: "ready"; teams: Team[]; season: string; isDemo: boolean };
+  | { status: "ready"; teams: Team[]; season: string; isDemo: boolean; leagueId: string | null };
 
 export default function App() {
   const [load, setLoad] = useState<LoadState>({ status: "entry" });
@@ -73,7 +74,7 @@ export default function App() {
       window.history.replaceState(null, "", url);
       setScreen("overview");
       setSelectedTeamId(null);
-      setLoad({ status: "ready", teams, season: payload.season, isDemo: false });
+      setLoad({ status: "ready", teams, season: payload.season, isDemo: false, leagueId });
     } catch (e) {
       setLoad({
         status: "error",
@@ -122,7 +123,7 @@ export default function App() {
   const viewDemo = () => {
     setScreen("overview");
     setSelectedTeamId(null);
-    setLoad({ status: "ready", teams: DEMO_LEAGUE, season: DEMO_SEASON, isDemo: true });
+    setLoad({ status: "ready", teams: DEMO_LEAGUE, season: DEMO_SEASON, isDemo: true, leagueId: null });
   };
 
   const changeLeague = () => setLoad({ status: "entry" });
@@ -159,7 +160,7 @@ export default function App() {
     );
   }
 
-  const { teams, season, isDemo } = load;
+  const { teams, season, isDemo, leagueId } = load;
 
   const selectedTeam = selectedTeamId
     ? (teams.find((t) => t.id === selectedTeamId) ?? null)
@@ -304,6 +305,7 @@ export default function App() {
                   id: "feasibility",
                   label: "Feasibility",
                 },
+                ...(isDemo ? [] : [{ id: "history", label: "League History" }]),
               ] as { id: Screen; label: string }[]
             ).map(({ id, label }) => (
               <button
@@ -405,10 +407,13 @@ export default function App() {
             onSelectTeam={goToTeam}
           />
         )}
+        {screen === "history" && leagueId && (
+          <LeagueHistory leagueId={leagueId} />
+        )}
       </main>
 
       {/* How it works */}
-      {screen !== "feasibility" && (
+      {screen !== "feasibility" && screen !== "history" && (
         <footer
           style={{
             borderTop: "1px solid #232c47",
