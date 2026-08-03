@@ -12,7 +12,14 @@ interface Props {
 }
 
 type AcquisitionType = 'Startup Draft' | 'Rookie Draft' | 'Trade' | 'Waiver'
-type AcquisitionMap = Record<string, AcquisitionType | null>
+interface Acquisition {
+  type: AcquisitionType
+  // True when this wasn't a direct record for the current owner -- the
+  // roster changed hands and this is inferred from the previous
+  // manager's history instead (see build_acquisition_map's docstring).
+  inherited: boolean
+}
+type AcquisitionMap = Record<string, Acquisition | null>
 
 function acquisitionStyle(type: AcquisitionType): { color: string; background: string } {
   if (type === 'Startup Draft') return { color: '#818cf8', background: 'rgba(129,140,248,0.1)' }
@@ -561,11 +568,17 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
               idx={idx}
               isLast={idx === sorted.length - 1}
               isPlus1={plus1Ids.has(player.id)}
-              acquisitionType={acquisitions ? acquisitions[player.id] ?? null : undefined}
+              acquisition={acquisitions ? acquisitions[player.id] ?? null : undefined}
             />
           ))}
         </div>
       </div>
+      {acquisitions && Object.values(acquisitions).some((a) => a?.inherited) && (
+        <p style={{ marginTop: 8, fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace' }}>
+          * inferred from a previous manager -- this roster changed hands and no trade/waiver ever moved this
+          player to the current owner directly
+        </p>
+      )}
 
       {/* Future draft picks */}
       {futurePicksBySeason.length > 0 && (
@@ -630,14 +643,14 @@ function PlayerRow({
   idx,
   isLast,
   isPlus1,
-  acquisitionType,
+  acquisition,
 }: {
   player: Player
   idx: number
   isLast: boolean
   isPlus1: boolean
   // undefined = still loading (or no league to check); null = loaded, no record found
-  acquisitionType?: AcquisitionType | null
+  acquisition?: Acquisition | null
 }) {
   const [hovered, setHovered] = useState(false)
 
@@ -731,10 +744,15 @@ function PlayerRow({
       </div>
 
       {/* Acquisition type -- undefined while loading (or no league to look
-          it up for), null once loaded with no matching record found */}
+          it up for), null once loaded with no matching record at all */}
       <div>
-        {acquisitionType && (
+        {acquisition && (
           <span
+            title={
+              acquisition.inherited
+                ? "No trade/waiver record for the current owner -- this roster changed hands, so this is inferred from the previous manager's history"
+                : undefined
+            }
             style={{
               fontSize: 10,
               fontWeight: 600,
@@ -742,13 +760,16 @@ function PlayerRow({
               padding: '2px 7px',
               borderRadius: 4,
               fontFamily: 'JetBrains Mono, monospace',
-              ...acquisitionStyle(acquisitionType),
+              border: acquisition.inherited ? '1px dashed currentColor' : undefined,
+              opacity: acquisition.inherited ? 0.75 : 1,
+              ...acquisitionStyle(acquisition.type),
             }}
           >
-            {acquisitionType}
+            {acquisition.type}
+            {acquisition.inherited ? '*' : ''}
           </span>
         )}
-        {acquisitionType === null && (
+        {acquisition === null && (
           <span style={{ fontSize: 11, color: '#374151', fontFamily: 'JetBrains Mono, monospace' }}>—</span>
         )}
       </div>

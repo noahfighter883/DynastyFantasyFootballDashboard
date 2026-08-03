@@ -387,12 +387,29 @@ def build_acquisition_map(league_id):
             continue
         for pid in (roster.get("players") or []):
             pid = str(pid)
-            matching = [e for e in player_events.get(pid, []) if e["owner_id"] == owner_id]
+            events = player_events.get(pid, [])
+            matching = [e for e in events if e["owner_id"] == owner_id]
+            inherited = False
+            if not matching:
+                # No event under the CURRENT owner -- most likely this
+                # roster was handed to a different person and this player
+                # was already on it, so no trade/waiver ever moved them to
+                # the new owner_id. Fall back to the most recent event
+                # under ANY owner: that's how the PREVIOUS manager got
+                # them, and since the roster (not the player) is what
+                # changed hands, it's the best available answer for how
+                # this player entered the roster -- just flagged as
+                # inferred rather than a direct record for this owner.
+                matching = events
+                inherited = True
             if not matching:
                 acquisitions[pid] = None
                 continue
             matching.sort(key=lambda e: (e["season_order"], e["week"]))
-            acquisitions[pid] = ACQUISITION_LABELS.get(matching[-1]["type"])
+            acquisitions[pid] = {
+                "type": ACQUISITION_LABELS.get(matching[-1]["type"]),
+                "inherited": inherited,
+            }
 
     return {"league_id": league_id, "acquisitions": acquisitions}
 
