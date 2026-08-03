@@ -26,6 +26,7 @@ import os
 import re
 import time
 import concurrent.futures
+import datetime
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -465,6 +466,206 @@ def build_acquisition_map(league_id):
             acquisitions[pid] = entry
 
     return {"league_id": league_id, "acquisitions": acquisitions}
+
+
+def build_startup_draft_report(league_id):
+    """
+    Returns every skill-position player taken in the league's original
+    startup draft (the oldest season in the previous_league_id chain),
+    with their original draft position, current dynasty rank on two
+    different scales, age at draft vs. now, and current roster owner.
+
+    Rank is shown as TWO separate numbers rather than one combined
+    "movement" figure, because the startup draft (~250 picks) and the
+    current dynasty ADP pool (~600+ ranked players) are different sizes:
+      - dynasty_overall_rank: this player's ordinary 1..N dynasty rank,
+        same source/number shown everywhere else in the app (League
+        Overview, Team Detail). Kept for context, NOT used for movement,
+        since comparing a pick number from a small draft directly to a
+        rank on a much larger scale distorts every late-round pick (the
+        last pick "falling" to rank 500-something of 600+ looks
+        catastrophic but is actually neutral -- both are last place in
+        their respective pools).
+      - cohort_rank: this player re-ranked 1..N, but ONLY among the
+        closed set of players actually taken in the startup draft.
+        Apples-to-apples with original_pick_no (both are dense ranks over
+        the identical N-sized set), so THIS is what movement is computed
+        from: movement = original_pick_no - cohort_rank. Positive means
+        risen (drafted late, ranks well within the cohort today);
+        negative means fallen.
+
+    Only QB/RB/WR/TE picks are included, matching every other view in
+    this app.
+
+    If the startup season has more than one completed draft (e.g. a
+    redo), the one with the most picks is treated as "the" startup draft
+    and the rest are ignored -- movement math needs one contiguous pick
+    sequence, and a redo/supplemental draft is reliably much smaller than
+    the real startup.
+    """
+    validate_league_id(league_id)
+    settings = get_league_settings(league_id)
+    if not settings:
+        raise LeagueNotFoundError(f"No Sleeper league found with id '{league_id}'.")
+
+    chain = get_league_chain(league_id)
+    if not chain:
+        return {"league_id": league_id, "season": None, "has_startup_draft": False, "picks": []}
+    startup_league_id = chain[0]
+
+    startup_settings = (
+        settings if startup_league_id == league_id
+        else _cached(
+            f"startup_draft:{startup_league_id}:settings",
+            lambda: get_league_settings(startup_league_id),
+            max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+        )
+    )
+    startup_season = (startup_settings or {}).get("season")
+
+    def _fetch_startup_picks():
+        try:
+            drafts = get_drafts_for_league(startup_league_id)
+        except (urllib.error.HTTPError, urllib.error.URLError):
+            return None
+        completed = [d for d in (drafts or []) if d.get("status") == "complete"]
+        if not completed:
+            return None
+        best_draft, best_picks = None, []
+        for d in completed:
+            try:
+                picks = get_draft_picks(d.get("draft_id")) or []
+            except (urllib.error.HTTPError, urllib.error.URLError):
+                continue
+            if len(picks) > len(best_picks):
+                best_draft, best_picks = d, picks
+        if best_draft is None:
+            return None
+        return {"draft": best_draft, "picks": best_picks}
+
+    startup_draft_data = _cached(
+        f"startup_draft:{startup_league_id}:picks",
+        _fetch_startup_picks,
+        max_age_seconds=HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS,
+    )
+    if not startup_draft_data:
+        return {"league_id": league_id, "season": startup_season, "has_startup_draft": False, "picks": []}
+
+    draft_obj = startup_draft_data["draft"]
+    raw_picks = startup_draft_data["picks"]
+    teams = (draft_obj.get("settings") or {}).get("teams")
+    draft_start_ms = draft_obj.get("start_time")
+
+    players = get_all_players()
+    dynasty_adp = get_dynasty_rankings()
+
+    # Current-season rosters/users, for the current-owner lookup and to
+    # extend the fallback-rank name set below (a startup-drafted player
+    # since dropped by everyone still needs a rank, not a silent None).
+    rosters = get_rosters(league_id)
+    users = get_users(league_id)
+    user_map = {}
+    for u in users:
+        team_name = None
+        if u.get("metadata"):
+            team_name = u["metadata"].get("team_name")
+        user_map[u["user_id"]] = team_name or u.get("display_name") or "Unknown"
+    roster_id_to_team_name = {
+        r.get("roster_id"): user_map.get(r.get("owner_id"), "Unknown") for r in (rosters or [])
+    }
+    player_id_to_current_team = {}
+    for r in (rosters or []):
+        team_name = roster_id_to_team_name.get(r.get("roster_id"))
+        for pid in (r.get("players") or []):
+            player_id_to_current_team[str(pid)] = team_name
+
+    skill_picks = []
+    for pick in raw_picks:
+        meta = pick.get("metadata") or {}
+        position = meta.get("position") or (players.get(str(pick.get("player_id")), {}) or {}).get("position")
+        if position not in SKILL_POSITIONS:
+            continue
+        skill_picks.append((pick, position))
+
+    all_names = set()
+    for pick, _pos in skill_picks:
+        meta = pick.get("metadata") or {}
+        full_name = f"{meta.get('first_name', '')} {meta.get('last_name', '')}".strip()
+        if full_name:
+            all_names.add(full_name)
+    for r in (rosters or []):
+        for pid in (r.get("players") or []):
+            p = players.get(pid, {})
+            if p.get("position") in SKILL_POSITIONS:
+                full_name = f"{p.get('first_name', '')} {p.get('last_name', '')}".strip()
+                if full_name:
+                    all_names.add(full_name)
+
+    dynasty_adp = fill_unmatched_with_low_values(dynasty_adp, all_names, "startup-draft dynasty")
+
+    picks_out = []
+    for pick, position in skill_picks:
+        meta = pick.get("metadata") or {}
+        pid = str(pick.get("player_id"))
+        full_name = f"{meta.get('first_name', '')} {meta.get('last_name', '')}".strip() or "Unknown"
+        dynasty_info = dynasty_adp.get(normalize_name(full_name))
+
+        round_num = pick.get("round")
+        pick_no = pick.get("pick_no")
+        pick_in_round = (
+            pick_no - (round_num - 1) * teams if pick_no and round_num and teams else None
+        )
+
+        player_ref = players.get(pid, {})
+        birth_date = player_ref.get("birth_date")
+        age_now = player_ref.get("age")
+        age_at_draft = None
+        if birth_date and draft_start_ms:
+            try:
+                born = datetime.date.fromisoformat(birth_date)
+                drafted = datetime.date.fromtimestamp(draft_start_ms / 1000)
+                age_at_draft = drafted.year - born.year - (
+                    (drafted.month, drafted.day) < (born.month, born.day)
+                )
+            except (ValueError, OSError):
+                age_at_draft = None
+
+        picks_out.append({
+            "player_id": pid,
+            "name": full_name,
+            "position": position,
+            "nfl_team": meta.get("team") or player_ref.get("team"),
+            "round": round_num,
+            "pick_in_round": pick_in_round,
+            "original_pick_no": pick_no,
+            "dynasty_overall_rank": dynasty_info["rank"] if dynasty_info else None,
+            "cohort_rank": None,
+            "movement": None,
+            "age_at_draft": age_at_draft,
+            "age_now": age_now,
+            "current_team_name": player_id_to_current_team.get(pid),
+        })
+
+    # Cohort rank: re-rank only THIS closed set, 1..N, by dynasty_overall_rank
+    # ascending (rank 1 dynasty = best = cohort rank 1).
+    ranked = sorted(
+        (p for p in picks_out if p["dynasty_overall_rank"] is not None),
+        key=lambda p: p["dynasty_overall_rank"],
+    )
+    for i, p in enumerate(ranked):
+        p["cohort_rank"] = i + 1
+        if p["original_pick_no"] is not None:
+            p["movement"] = p["original_pick_no"] - p["cohort_rank"]
+
+    picks_out.sort(key=lambda p: (p["original_pick_no"] is None, p["original_pick_no"]))
+
+    return {
+        "league_id": league_id,
+        "season": startup_season,
+        "has_startup_draft": True,
+        "teams": teams,
+        "picks": picks_out,
+    }
 
 
 class UserNotFoundError(Exception):

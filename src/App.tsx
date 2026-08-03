@@ -9,6 +9,7 @@ import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
 import FeasibilityComparison from "./components/FeasibilityComparison";
 import LeagueHistory from "./components/LeagueHistory";
+import StartupDraftReport from "./components/StartupDraftReport";
 import LeagueEntry from "./components/LeagueEntry";
 import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
 import type { Screen, Position, Team } from "./types";
@@ -312,6 +313,7 @@ export default function App() {
                   label: "Feasibility",
                 },
                 ...(isDemo ? [] : [{ id: "history", label: "League History" }]),
+                ...(isDemo ? [] : [{ id: "startupDraft", label: "Startup Draft" }]),
               ] as { id: Screen; label: string }[]
             ).map(({ id, label }) => (
               <button
@@ -421,10 +423,13 @@ export default function App() {
             onSelectOwner={setSelectedOwnerId}
           />
         )}
+        {screen === "startupDraft" && leagueId && (
+          <StartupDraftReport leagueId={leagueId} />
+        )}
       </main>
 
       {/* How it works */}
-      {screen !== "feasibility" && screen !== "history" && (
+      {screen !== "feasibility" && screen !== "history" && screen !== "startupDraft" && (
         <footer
           style={{
             borderTop: "1px solid #232c47",
