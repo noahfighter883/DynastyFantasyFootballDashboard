@@ -197,15 +197,6 @@ const COLUMNS: ColumnDef[] = [
     render: (p) => p.position,
   },
   {
-    key: 'nfl_team',
-    label: 'NFL TEAM',
-    width: '80px',
-    description: 'NFL team at the time of the startup draft',
-    defaultDir: 'asc',
-    sortValue: (p) => p.nfl_team ?? 'ZZ',
-    render: (p) => p.nfl_team ?? '—',
-  },
-  {
     key: 'round_pick',
     label: 'RD.PK',
     width: '90px',
@@ -227,7 +218,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: 'cohort_rank',
     label: 'DRAFT CLASS RANK',
-    width: '140px',
+    width: '130px',
     description: 'Rank among ONLY the players taken in this startup draft, by current dynasty rank -- apples-to-apples with the original pick number',
     defaultDir: 'asc',
     sortValue: (p) => p.cohort_rank ?? Infinity,
@@ -245,7 +236,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: 'age_at_draft',
     label: 'AGE (DRAFT)',
-    width: '100px',
+    width: '90px',
     description: 'Age at the time of the startup draft',
     groupStart: true,
     defaultDir: 'asc',
@@ -264,7 +255,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: 'drafted_by_team_name',
     label: 'DRAFTED BY',
-    width: '150px',
+    width: '130px',
     description: 'Team that made this pick in the startup draft',
     groupStart: true,
     defaultDir: 'asc',
@@ -274,7 +265,7 @@ const COLUMNS: ColumnDef[] = [
   {
     key: 'current_team_name',
     label: 'CURRENT TEAM',
-    width: '160px',
+    width: '140px',
     description: 'Team currently rostering this player, if any',
     defaultDir: 'asc',
     sortValue: (p) => p.current_team_name ?? 'zzz',
@@ -282,13 +273,16 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-// minmax(0, 1fr), not a bare 1fr -- the header and every row are each their
-// own independent grid container (not rows of one shared grid), so without
-// this a bare 1fr's implicit min-width:auto lets each one size the PLAYER
-// column to its own content's minimum width (driven by the longest
-// unbreakable word in that particular name), making the column a different
-// actual pixel width per row and throwing off alignment with the header.
-const GRID_TEMPLATE = `44px minmax(0, 1fr) ${COLUMNS.map((c) => c.width).join(' ')}`
+// minmax(150px, 1fr), not a bare 1fr -- the header and every row are each
+// their own independent grid container (not rows of one shared grid), so
+// without an explicit minimum a bare 1fr's implicit min-width:auto lets each
+// one size the PLAYER column to its own content's minimum width (driven by
+// the longest unbreakable word in that particular name), making the column a
+// different actual pixel width per row and throwing off alignment with the
+// header. The explicit 150px floor also keeps names readable on one line
+// even when the table's minWidth is trimmed tight to fit smaller screens.
+const GRID_TEMPLATE = `44px minmax(150px, 1fr) ${COLUMNS.map((c) => c.width).join(' ')}`
+const COLUMN_GAP = 10
 
 function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'round_pick', dir: 'asc' })
@@ -360,10 +354,10 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
           style={{
             display: 'grid',
             gridTemplateColumns: GRID_TEMPLATE,
-            minWidth: 1520,
+            minWidth: 1210,
             padding: '10px 20px',
             borderBottom: '1px solid #232c47',
-            gap: 16,
+            gap: COLUMN_GAP,
             alignItems: 'center',
           }}
         >
@@ -404,8 +398,8 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
                   background: 'none',
                   border: 'none',
                   borderLeft: col.groupStart ? '1px solid #232c47' : 'none',
-                  paddingLeft: col.groupStart ? 16 : 0,
-                  marginLeft: col.groupStart ? -16 : 0,
+                  paddingLeft: col.groupStart ? COLUMN_GAP : 0,
+                  marginLeft: col.groupStart ? -COLUMN_GAP : 0,
                   cursor: 'pointer',
                   fontSize: 10,
                   fontWeight: 600,
@@ -440,7 +434,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
               gridTemplateColumns: GRID_TEMPLATE,
               padding: '11px 20px',
               borderBottom: idx < sortedPicks.length - 1 ? '1px solid #1b2438' : 'none',
-              gap: 16,
+              gap: COLUMN_GAP,
               alignItems: 'center',
               animationDelay: `${Math.min(idx, 10) * 12}ms`,
             }}
@@ -466,8 +460,8 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: 13,
                   borderLeft: col.groupStart ? '1px solid #1b2438' : 'none',
-                  paddingLeft: col.groupStart ? 16 : 0,
-                  marginLeft: col.groupStart ? -16 : 0,
+                  paddingLeft: col.groupStart ? COLUMN_GAP : 0,
+                  marginLeft: col.groupStart ? -COLUMN_GAP : 0,
                   color: col.key === 'movement' ? movementColor(pick.movement) : '#a0a6b8',
                 }}
               >
