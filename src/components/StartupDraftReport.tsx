@@ -338,6 +338,14 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
         ref={headerScrollRef}
         style={{
           overflowX: 'hidden',
+          // Reserves the same permanent scrollbar gutter as the body pane
+          // below (.table-scroll's scrollbar-gutter: stable) -- without
+          // this, the body pane is a few pixels narrower than the header
+          // pane whenever its scrollbar gutter is reserved, so the two
+          // panes' identical grid templates compute to different actual
+          // widths and every column drifts out of alignment.
+          overflowY: 'auto',
+          scrollbarGutter: 'stable',
           position: 'sticky',
           // Sits just below the app's own sticky top nav (53px tall,
           // z-index 50) so both stay visible while scrolling this long table.

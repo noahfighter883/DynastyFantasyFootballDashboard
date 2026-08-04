@@ -103,6 +103,13 @@ button {
      visibly moves). */
   overflow-y: visible;
   -webkit-overflow-scrolling: touch;
+  /* Reserves a permanent scrollbar gutter even when nothing overflows, so
+     this element's available content width doesn't change depending on
+     whether a scrollbar happens to be showing. A sticky header rendered as
+     a separate pane above this one (see StartupDraftReport.tsx) needs to
+     reserve the exact same gutter, or the two panes' grid columns compute
+     to slightly different widths and drift out of alignment. */
+  scrollbar-gutter: stable;
 }
 
 @media (max-width: 720px) {
