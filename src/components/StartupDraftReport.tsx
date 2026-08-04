@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiStartupDraftPayload, StartupDraftPick } from '../data/startupDraftData'
 
 interface Props {
@@ -286,6 +286,8 @@ const GRID_TEMPLATE = `44px 1fr ${COLUMNS.map((c) => c.width).join(' ')}`
 
 function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'round_pick', dir: 'asc' })
+  const headerScrollRef = useRef<HTMLDivElement>(null)
+  const bodyScrollRef = useRef<HTMLDivElement>(null)
 
   const sortedPicks = useMemo(() => {
     const column = COLUMNS.find((c) => c.key === sort.key)
@@ -309,24 +311,46 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
     )
   }
 
+  // A sticky header can't live inside the same overflow-x: auto box as the
+  // rows -- browsers force overflow-y to "auto" the moment overflow-x isn't
+  // "visible" (there's no way to opt out of this even with an explicit
+  // overflow-y: visible), which makes that box position:sticky's containing
+  // block instead of the page, so the header would never actually move as
+  // the page scrolls. Split into two panes instead: the header pane is
+  // sticky and clips its own horizontal overflow (overflow-x: hidden, never
+  // shows a scrollbar), the body pane scrolls normally, and a scroll
+  // handler keeps them in horizontal sync.
+  const syncHeaderScroll = () => {
+    if (headerScrollRef.current && bodyScrollRef.current) {
+      headerScrollRef.current.scrollLeft = bodyScrollRef.current.scrollLeft
+    }
+  }
+
   return (
-    <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
-      <div style={{ minWidth: 1240 }}>
+    <div style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
+      <div
+        ref={headerScrollRef}
+        style={{
+          overflowX: 'hidden',
+          position: 'sticky',
+          // Sits just below the app's own sticky top nav (53px tall,
+          // z-index 50) so both stay visible while scrolling this long table.
+          top: 53,
+          zIndex: 10,
+          background: '#131a2b',
+          borderTopLeftRadius: 10,
+          borderTopRightRadius: 10,
+        }}
+      >
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: GRID_TEMPLATE,
+            minWidth: 1240,
             padding: '10px 20px',
             borderBottom: '1px solid #232c47',
             gap: 16,
             alignItems: 'center',
-            position: 'sticky',
-            // Sits just below the app's own sticky top nav (53px tall,
-            // z-index 50) so both stay visible while scrolling this long
-            // table instead of the column labels sliding under the nav.
-            top: 53,
-            zIndex: 10,
-            background: '#131a2b',
           }}
         >
           <span
@@ -384,7 +408,15 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
             )
           })}
         </div>
+      </div>
 
+      <div
+        ref={bodyScrollRef}
+        onScroll={syncHeaderScroll}
+        className="table-scroll"
+        style={{ borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }}
+      >
+        <div style={{ minWidth: 1240 }}>
         {sortedPicks.map((pick, idx) => (
           <div
             key={pick.player_id}
@@ -431,6 +463,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
             ))}
           </div>
         ))}
+        </div>
       </div>
     </div>
   )
