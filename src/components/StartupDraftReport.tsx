@@ -451,8 +451,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
                 fontSize: 13,
                 fontWeight: 600,
                 color: idx < 3 ? '#3b82f6' : '#4b5563',
-                width: 28,
-                textAlign: 'right',
+                textAlign: 'left',
               }}
             >
               {idx + 1}
