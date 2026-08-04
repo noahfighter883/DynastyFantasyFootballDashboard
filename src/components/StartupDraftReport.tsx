@@ -424,7 +424,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
         className="table-scroll"
         style={{ borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }}
       >
-        <div style={{ minWidth: 1520 }}>
+        <div style={{ minWidth: 1210 }}>
         {sortedPicks.map((pick, idx) => (
           <div
             key={pick.player_id}
