@@ -282,7 +282,13 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-const GRID_TEMPLATE = `44px 1fr ${COLUMNS.map((c) => c.width).join(' ')}`
+// minmax(0, 1fr), not a bare 1fr -- the header and every row are each their
+// own independent grid container (not rows of one shared grid), so without
+// this a bare 1fr's implicit min-width:auto lets each one size the PLAYER
+// column to its own content's minimum width (driven by the longest
+// unbreakable word in that particular name), making the column a different
+// actual pixel width per row and throwing off alignment with the header.
+const GRID_TEMPLATE = `44px minmax(0, 1fr) ${COLUMNS.map((c) => c.width).join(' ')}`
 
 function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'round_pick', dir: 'asc' })

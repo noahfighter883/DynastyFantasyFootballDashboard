@@ -247,7 +247,13 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
-const GRID_TEMPLATE = `44px 1fr ${COLUMNS.map((c) => c.width).join(' ')}`
+// minmax(0, 1fr), not a bare 1fr -- the header and every row are each their
+// own independent grid container, so without this a bare 1fr's implicit
+// min-width:auto lets each one size the TEAM/OWNER column to its own
+// content's minimum width, making the column a different actual pixel
+// width per row and throwing off alignment with the header (see the same
+// fix/explanation in StartupDraftReport.tsx).
+const GRID_TEMPLATE = `44px minmax(0, 1fr) ${COLUMNS.map((c) => c.width).join(' ')}`
 
 function AllTimeTable({
   owners,
