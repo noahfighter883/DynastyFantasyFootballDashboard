@@ -360,7 +360,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
           style={{
             display: 'grid',
             gridTemplateColumns: GRID_TEMPLATE,
-            minWidth: 1240,
+            minWidth: 1520,
             padding: '10px 20px',
             borderBottom: '1px solid #232c47',
             gap: 16,
@@ -430,7 +430,7 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
         className="table-scroll"
         style={{ borderBottomLeftRadius: 10, borderBottomRightRadius: 10 }}
       >
-        <div style={{ minWidth: 1240 }}>
+        <div style={{ minWidth: 1520 }}>
         {sortedPicks.map((pick, idx) => (
           <div
             key={pick.player_id}
