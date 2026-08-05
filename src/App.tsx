@@ -12,7 +12,7 @@ import LeagueHistory from "./components/LeagueHistory";
 import StartupDraftReport from "./components/StartupDraftReport";
 import LeagueEntry from "./components/LeagueEntry";
 import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
-import type { Screen, Position, Team } from "./types";
+import type { Screen, Position, Team, SortScope, SortMetric } from "./types";
 
 const LAST_LEAGUE_KEY = "dynastyevaluator:lastLeagueId";
 const DEMO_SEASON = "2026";
@@ -45,6 +45,16 @@ export default function App() {
     Position | "ALL"
   >("ALL");
   const [selectedOwnerId, setSelectedOwnerId] = useState<string | null>(null);
+
+  // League Overview / Position Comparison view state, lifted here (rather
+  // than local to each screen) so a repeat visitor's chosen scope/metric/
+  // position survives navigating away and back instead of silently
+  // resetting to Starters/Dynasty/WR every visit.
+  const [overviewScope, setOverviewScope] = useState<SortScope>("starters");
+  const [overviewMetric, setOverviewMetric] = useState<SortMetric>("dynasty");
+  const [positionPos, setPositionPos] = useState<Position>("WR");
+  const [positionScope, setPositionScope] = useState<SortScope>("starters");
+  const [positionMetric, setPositionMetric] = useState<SortMetric>("dynasty");
 
   // Fetches a JSON API response, treating a non-JSON body (e.g. a gateway
   // error page) as its own distinct failure rather than an unreadable crash.
@@ -272,6 +282,11 @@ export default function App() {
               </span>
               <span
                 className="app-header-badge"
+                title={
+                  isDemo
+                    ? "League History and Startup Draft need real multi-season Sleeper data, so they're hidden in the demo -- connect your own league to see them"
+                    : undefined
+                }
                 style={{
                   fontSize: 11,
                   fontFamily: "JetBrains Mono, monospace",
@@ -358,18 +373,32 @@ export default function App() {
             }}
           >
             {screen === "team" && selectedTeam ? selectedTeam.owner : null}
+            {/* Distinct from "← Back" -- this discards the whole session
+                (league data, selections, scope/metric choices), not just
+                the current screen, so it gets its own color rather than
+                sharing the neutral back-button treatment. */}
             <button
               onClick={changeLeague}
               style={{
                 fontSize: 12,
                 color: "#6b7280",
                 background: "none",
-                border: "none",
+                border: "1px solid #232c47",
+                borderRadius: 5,
+                padding: "3px 8px",
                 cursor: "pointer",
-                padding: 0,
                 fontFamily: "inherit",
                 whiteSpace: "nowrap",
                 flexShrink: 0,
+                transition: "color 0.15s, border-color 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                (e.currentTarget as HTMLElement).style.color = "#f0b429";
+                (e.currentTarget as HTMLElement).style.borderColor = "#4a3f1a";
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.color = "#6b7280";
+                (e.currentTarget as HTMLElement).style.borderColor = "#232c47";
               }}
             >
               Change league
@@ -393,6 +422,10 @@ export default function App() {
             teams={teams}
             season={season}
             onSelectTeam={goToTeam}
+            scope={overviewScope}
+            onScopeChange={setOverviewScope}
+            metric={overviewMetric}
+            onMetricChange={setOverviewMetric}
           />
         )}
         {screen === "team" && selectedTeam && (
@@ -408,6 +441,12 @@ export default function App() {
           <PositionComparison
             teams={teams}
             onSelectTeam={goToTeam}
+            pos={positionPos}
+            onPosChange={setPositionPos}
+            scope={positionScope}
+            onScopeChange={setPositionScope}
+            metric={positionMetric}
+            onMetricChange={setPositionMetric}
           />
         )}
         {screen === "feasibility" && (
@@ -428,47 +467,47 @@ export default function App() {
         )}
       </main>
 
-      {/* How it works */}
-      {screen !== "feasibility" && screen !== "history" && screen !== "startupDraft" && (
-        <footer
+      {/* How it works -- shown on every screen; Feasibility/History/Startup
+          Draft are exactly the screens whose numbers most need this
+          explained, so hiding it there was backwards. */}
+      <footer
+        style={{
+          borderTop: "1px solid #232c47",
+          marginTop: 40,
+        }}
+      >
+        <div
           style={{
-            borderTop: "1px solid #232c47",
-            marginTop: 40,
+            maxWidth: 1400,
+            margin: "0 auto",
+            padding: "20px 24px 32px",
           }}
         >
-          <div
+          <p
             style={{
-              maxWidth: 1400,
-              margin: "0 auto",
-              padding: "20px 24px 32px",
+              fontSize: 12,
+              color: "#6b7280",
+              lineHeight: 1.6,
+              maxWidth: 760,
             }}
           >
-            <p
-              style={{
-                fontSize: 12,
-                color: "#6b7280",
-                lineHeight: 1.6,
-                maxWidth: 760,
-              }}
-            >
-              <span style={{ color: "#a0a6b8", fontWeight: 600 }}>
-                How scoring works:
-              </span>{" "}
-              team value uses an average-rank system — lower average
-              rank means a stronger team, the same logic as golf
-              scoring — rather than a raw point total, so a team's
-              score reflects player quality regardless of roster
-              size. Values are shown in round.pick notation (e.g.{" "}
-              <span style={{ fontFamily: "JetBrains Mono, monospace" }}>
-                3.3
-              </span>{" "}
-              = the equivalent 3rd-round, 3rd-pick draft slot in a{" "}
-              {teams.length}-team snake draft). Only QB/RB/WR/TE are
-              covered — kickers, defenses, and IDP are ignored.
-            </p>
-          </div>
-        </footer>
-      )}
+            <span style={{ color: "#a0a6b8", fontWeight: 600 }}>
+              How scoring works:
+            </span>{" "}
+            team value uses an average-rank system — lower average
+            rank means a stronger team, the same logic as golf
+            scoring — rather than a raw point total, so a team's
+            score reflects player quality regardless of roster
+            size. Values are shown in round.pick notation (e.g.{" "}
+            <span style={{ fontFamily: "JetBrains Mono, monospace" }}>
+              3.3
+            </span>{" "}
+            = the equivalent 3rd-round, 3rd-pick draft slot in a{" "}
+            {teams.length}-team snake draft). Only QB/RB/WR/TE are
+            covered — kickers, defenses, and IDP are ignored.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

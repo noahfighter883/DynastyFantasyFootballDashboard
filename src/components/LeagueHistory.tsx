@@ -281,9 +281,15 @@ function AllTimeTable({
 
   return (
     <>
-    <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}>
+    <div
+      className="table-scroll"
+      style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}
+      role="table"
+      aria-label="All-time league standings"
+    >
       <div style={{ minWidth: 980 }}>
         <div
+          role="row"
           style={{
             display: 'grid',
             gridTemplateColumns: GRID_TEMPLATE,
@@ -294,6 +300,7 @@ function AllTimeTable({
           }}
         >
           <span
+            role="columnheader"
             style={{
               fontSize: 10,
               fontWeight: 600,
@@ -305,6 +312,7 @@ function AllTimeTable({
             RK
           </span>
           <span
+            role="columnheader"
             style={{
               fontSize: 10,
               fontWeight: 600,
@@ -317,11 +325,16 @@ function AllTimeTable({
           </span>
           {COLUMNS.map((col) => {
             const active = sort.key === col.key
+            const dir = active ? sort.dir : col.defaultDir
+            const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
             return (
               <button
                 key={col.key}
                 type="button"
+                role="columnheader"
+                aria-sort={ariaSort as React.AriaAttributes['aria-sort']}
                 title={col.description}
+                aria-label={`${col.label}: ${col.description}`}
                 onClick={() => toggleSort(col)}
                 style={{
                   display: 'flex',
@@ -338,12 +351,11 @@ function AllTimeTable({
                   letterSpacing: '0.08em',
                   color: active ? '#e2e4e9' : '#6b7280',
                   fontFamily: 'JetBrains Mono, monospace',
+                  borderBottom: '1px dotted currentColor',
                 }}
               >
                 {col.label}
-                <span style={{ fontSize: 9, opacity: active ? 1 : 0.35 }}>
-                  {active ? (sort.dir === 'asc' ? '▲' : '▼') : '▲'}
-                </span>
+                <span style={{ fontSize: 9, opacity: active ? 1 : 0.35 }}>{dir === 'asc' ? '▲' : '▼'}</span>
               </button>
             )
           })}
@@ -390,11 +402,27 @@ function AllTimeTable({
               {idx + 1}
             </div>
 
-            <div>
-              <div style={{ fontWeight: 600, fontSize: 14, letterSpacing: '-0.01em', marginBottom: 2 }}>
+            <div style={{ minWidth: 0 }}>
+              <div
+                title={owner.team_name}
+                style={{
+                  fontWeight: 600,
+                  fontSize: 14,
+                  letterSpacing: '-0.01em',
+                  marginBottom: 2,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
                 {owner.team_name}
               </div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>{owner.display_name}</div>
+              <div
+                title={owner.display_name}
+                style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
+                {owner.display_name}
+              </div>
             </div>
 
             {COLUMNS.map((col) => (

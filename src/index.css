@@ -110,6 +110,27 @@ button {
      reserve the exact same gutter, or the two panes' grid columns compute
      to slightly different widths and drift out of alignment. */
   scrollbar-gutter: stable;
+
+  /* Scroll-edge shadows: pure-CSS "is there more content this way" hint for
+     horizontally-scrollable tables (matters most on mobile, where the
+     native scrollbar is invisible until touched, so there's otherwise no
+     affordance at all that a table cuts off mid-column). Two gradients are
+     pinned to the scrollport (background-attachment: scroll) and stay put;
+     two more, the same solid color as the table's own background
+     (background-attachment: local), scroll together with the content and
+     cover the shadow whenever that edge is the start/end of the scroll
+     range -- so the shadow only shows on the edge that actually has more
+     content hidden past it. No JS/scroll-listener needed. */
+  background-image:
+    linear-gradient(to right, #131a2b 40%, rgba(19, 26, 43, 0)),
+    linear-gradient(to left, #131a2b 40%, rgba(19, 26, 43, 0)),
+    linear-gradient(to right, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0)),
+    linear-gradient(to left, rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0));
+  background-repeat: no-repeat;
+  background-color: #131a2b;
+  background-size: 24px 100%, 24px 100%, 10px 100%, 10px 100%;
+  background-position: left, right, left, right;
+  background-attachment: local, local, scroll, scroll;
 }
 
 @media (max-width: 720px) {
@@ -135,6 +156,20 @@ button {
     flex: 1 1 100%;
     justify-content: flex-start !important;
     overflow-x: auto;
+    /* Same scroll-edge-shadow technique as .table-scroll above, tuned to the
+       header's own background -- without this, two of the five nav tabs
+       (League History, Startup Draft) are reachable only by a swipe a
+       first-time mobile visitor has no reason to guess is there. */
+    background-image:
+      linear-gradient(to right, #0a0f1e 40%, rgba(10, 15, 30, 0)),
+      linear-gradient(to left, #0a0f1e 40%, rgba(10, 15, 30, 0)),
+      linear-gradient(to right, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0)),
+      linear-gradient(to left, rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0));
+    background-repeat: no-repeat;
+    background-color: #0a0f1e;
+    background-size: 20px 100%, 20px 100%, 8px 100%, 8px 100%;
+    background-position: left, right, left, right;
+    background-attachment: local, local, scroll, scroll;
   }
   .app-header-badge {
     display: none;

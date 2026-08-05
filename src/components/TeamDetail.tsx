@@ -246,6 +246,8 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
   const [chartMode, setChartMode] = useState<'dynasty' | 'redraft' | 'both'>('both')
   const [view, setView] = useState<'chart' | 'cards'>(cameFrom === 'position' ? 'cards' : 'chart')
   const [acquisitions, setAcquisitions] = useState<AcquisitionMap | null>(null)
+  const [acquisitionsError, setAcquisitionsError] = useState<string | null>(null)
+  const [acqRetryKey, setAcqRetryKey] = useState(0)
 
   // Acquisition history requires walking the league's entire season chain,
   // so it's fetched lazily here rather than bundled into the main league
@@ -253,28 +255,36 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
   useEffect(() => {
     if (!leagueId) {
       setAcquisitions(null)
+      setAcquisitionsError(null)
       return
     }
     let cancelled = false
+    setAcquisitionsError(null)
     ;(async () => {
       try {
         const res = await fetch(`/api/acquisitions?league_id=${encodeURIComponent(leagueId)}`)
         const body = await res.json()
         if (!res.ok) throw new Error(body?.error || `Request failed (${res.status})`)
         if (!cancelled) setAcquisitions(body.acquisitions as AcquisitionMap)
-      } catch {
-        if (!cancelled) setAcquisitions(null)
+      } catch (e) {
+        if (!cancelled) {
+          setAcquisitions(null)
+          setAcquisitionsError(e instanceof Error ? e.message : 'Failed to load acquisition history.')
+        }
       }
     })()
     return () => {
       cancelled = true
     }
-  }, [leagueId])
+  }, [leagueId, acqRetryKey])
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
     else { setSortCol(col); setSortDir('desc') }
   }
+
+  const ariaSortFor = (col: SortCol): React.AriaAttributes['aria-sort'] =>
+    sortCol === col ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'
 
   const sorted = useMemo(() => {
     const base = posFilter === 'ALL' ? team.players : team.players.filter((p) => p.position === posFilter)
@@ -537,6 +547,8 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
       {/* Player table */}
       <div
         className="table-scroll"
+        role="table"
+        aria-label="Full roster"
         style={{
           background: '#131a2b',
           border: '1px solid #232c47',
@@ -546,6 +558,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
         <div style={{ minWidth: 720 }}>
           {/* Header row */}
           <div
+            role="row"
             style={{
               display: 'grid',
               gridTemplateColumns: '28px 1fr 80px 72px 100px 100px 100px 110px',
@@ -555,26 +568,26 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
               alignItems: 'center',
             }}
           >
-            <span style={{ ...headerStyle('isStarter'), padding: '10px 4px', cursor: 'default' }}>#</span>
-            <button onClick={() => handleSort('name')} style={headerStyle('name')}>
+            <span role="columnheader" style={{ ...headerStyle('isStarter'), padding: '10px 4px', cursor: 'default' }}>#</span>
+            <button role="columnheader" aria-sort={ariaSortFor('name')} onClick={() => handleSort('name')} style={headerStyle('name')}>
               PLAYER <SortIcon col="name" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <button onClick={() => handleSort('position')} style={headerStyle('position')}>
+            <button role="columnheader" aria-sort={ariaSortFor('position')} onClick={() => handleSort('position')} style={headerStyle('position')}>
               POS <SortIcon col="position" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <button onClick={() => handleSort('isStarter')} style={headerStyle('isStarter')}>
+            <button role="columnheader" aria-sort={ariaSortFor('isStarter')} onClick={() => handleSort('isStarter')} style={headerStyle('isStarter')}>
               ROLE <SortIcon col="isStarter" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <button onClick={() => handleSort('dynastyValue')} style={headerStyle('dynastyValue')}>
+            <button role="columnheader" aria-sort={ariaSortFor('dynastyValue')} onClick={() => handleSort('dynastyValue')} style={headerStyle('dynastyValue')}>
               DYN RK <SortIcon col="dynastyValue" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <button onClick={() => handleSort('redraftValue')} style={headerStyle('redraftValue')}>
+            <button role="columnheader" aria-sort={ariaSortFor('redraftValue')} onClick={() => handleSort('redraftValue')} style={headerStyle('redraftValue')}>
               RDR RK <SortIcon col="redraftValue" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <button onClick={() => handleSort('projectedPoints')} style={headerStyle('projectedPoints')}>
+            <button role="columnheader" aria-sort={ariaSortFor('projectedPoints')} onClick={() => handleSort('projectedPoints')} style={headerStyle('projectedPoints')}>
               PROJ PTS <SortIcon col="projectedPoints" sortCol={sortCol} sortDir={sortDir} />
             </button>
-            <span style={{ ...headerStyle('name'), cursor: 'default' }}>ACQUIRED</span>
+            <span role="columnheader" style={{ ...headerStyle('name'), cursor: 'default' }}>ACQUIRED</span>
           </div>
 
           {/* Player rows */}
@@ -595,6 +608,37 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
           * inferred from a previous manager -- this roster changed hands and no trade/waiver ever moved this
           player to the current owner directly
         </p>
+      )}
+      {acquisitionsError && (
+        <div
+          style={{
+            marginTop: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: 11,
+            color: '#f87171',
+            fontFamily: 'JetBrains Mono, monospace',
+          }}
+        >
+          <span>Couldn't load ACQUIRED history: {acquisitionsError}</span>
+          <button
+            type="button"
+            onClick={() => setAcqRetryKey((k) => k + 1)}
+            style={{
+              fontSize: 11,
+              fontFamily: 'JetBrains Mono, monospace',
+              color: '#f87171',
+              background: 'none',
+              border: '1px solid #4a1f1f',
+              borderRadius: 4,
+              padding: '2px 8px',
+              cursor: 'pointer',
+            }}
+          >
+            Retry
+          </button>
+        </div>
       )}
 
       {/* Future draft picks */}

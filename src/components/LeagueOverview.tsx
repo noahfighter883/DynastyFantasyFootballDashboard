@@ -1,10 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { Team, SortScope, SortMetric, Position } from '../types'
 
 interface Props {
   teams: Team[]
   season: string
   onSelectTeam: (id: string) => void
+  // Lifted to App so the ranking view a user picked survives navigating away
+  // and back (e.g. drilling into a team and returning), instead of quietly
+  // resetting to Starters/Dynasty every visit.
+  scope: SortScope
+  onScopeChange: (scope: SortScope) => void
+  metric: SortMetric
+  onMetricChange: (metric: SortMetric) => void
 }
 
 const POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE']
@@ -122,9 +129,15 @@ const METRIC_LABELS: Record<SortMetric, string> = {
   projected: 'Proj. Points',
 }
 
-export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
-  const [scope, setScope] = useState<SortScope>('starters')
-  const [metric, setMetric] = useState<SortMetric>('dynasty')
+export default function LeagueOverview({
+  teams,
+  season,
+  onSelectTeam,
+  scope,
+  onScopeChange,
+  metric,
+  onMetricChange,
+}: Props) {
 
   const ranked = useMemo(() => {
     const ascending = isAscendingMetric(metric)
@@ -198,7 +211,7 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
           {(['starters', 'starters_plus1', 'roster'] as SortScope[]).map((s) => (
             <button
               key={s}
-              onClick={() => setScope(s)}
+              onClick={() => onScopeChange(s)}
               aria-pressed={scope === s}
               style={{
                 padding: '5px 14px',
@@ -232,7 +245,7 @@ export default function LeagueOverview({ teams, season, onSelectTeam }: Props) {
           {(['dynasty', 'redraft', 'projected'] as SortMetric[]).map((m) => (
             <button
               key={m}
-              onClick={() => setMetric(m)}
+              onClick={() => onMetricChange(m)}
               aria-pressed={metric === m}
               style={{
                 padding: '5px 14px',

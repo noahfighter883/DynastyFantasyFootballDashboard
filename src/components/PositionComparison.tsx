@@ -1,9 +1,17 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import type { Team, Position, SortScope, SortMetric } from '../types'
 
 interface Props {
   teams: Team[]
   onSelectTeam: (id: string, pos?: Position) => void
+  // Lifted to App so a repeat visitor's chosen position/scope/metric
+  // survives navigating away and back, instead of resetting every visit.
+  pos: Position
+  onPosChange: (pos: Position) => void
+  scope: SortScope
+  onScopeChange: (scope: SortScope) => void
+  metric: SortMetric
+  onMetricChange: (metric: SortMetric) => void
 }
 
 const POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE']
@@ -63,10 +71,16 @@ function scopeLabel(scope: SortScope): string {
   return 'Full Roster'
 }
 
-export default function PositionComparison({ teams, onSelectTeam }: Props) {
-  const [pos, setPos] = useState<Position>('WR')
-  const [scope, setScope] = useState<SortScope>('starters')
-  const [metric, setMetric] = useState<SortMetric>('dynasty')
+export default function PositionComparison({
+  teams,
+  onSelectTeam,
+  pos,
+  onPosChange,
+  scope,
+  onScopeChange,
+  metric,
+  onMetricChange,
+}: Props) {
   const ascending = isAscendingMetric(metric)
 
   const ranked = useMemo(() => {
@@ -150,7 +164,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
           {POSITIONS.map((p) => (
             <button
               key={p}
-              onClick={() => setPos(p)}
+              onClick={() => onPosChange(p)}
               aria-pressed={pos === p}
               style={{
                 padding: '6px 18px',
@@ -185,7 +199,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
           {(['starters', 'starters_plus1', 'roster'] as SortScope[]).map((s) => (
             <button
               key={s}
-              onClick={() => setScope(s)}
+              onClick={() => onScopeChange(s)}
               aria-pressed={scope === s}
               style={{
                 padding: '5px 14px',
@@ -218,7 +232,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
           {(['dynasty', 'redraft', 'projected'] as SortMetric[]).map((m) => (
             <button
               key={m}
-              onClick={() => setMetric(m)}
+              onClick={() => onMetricChange(m)}
               aria-pressed={metric === m}
               style={{
                 padding: '5px 14px',
@@ -427,7 +441,7 @@ export default function PositionComparison({ teams, onSelectTeam }: Props) {
                   cursor: p !== pos ? 'pointer' : 'default',
                 }}
                 onClick={() => {
-                  if (p !== pos) setPos(p)
+                  if (p !== pos) onPosChange(p)
                 }}
               >
                 <div
