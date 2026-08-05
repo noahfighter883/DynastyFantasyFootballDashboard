@@ -240,7 +240,7 @@ function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol; s
 
 export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilter = 'ALL', leagueId = null }: Props) {
   const [metric, setMetric] = useState<SortMetric>('dynasty')
-  const [sortCol, setSortCol] = useState<SortCol>('isStarter')
+  const [sortCol, setSortCol] = useState<SortCol>('dynastyValue')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [posFilter, setPosFilter] = useState<Position | 'ALL'>(initialPosFilter)
   const [chartMode, setChartMode] = useState<'dynasty' | 'redraft' | 'both'>('both')
