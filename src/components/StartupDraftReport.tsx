@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ApiStartupDraftPayload, StartupDraftPick } from '../data/startupDraftData'
 
 interface Props {
-  leagueId: string
+  leagueId: string | null
+  // Demo league has no real Sleeper league to fetch, so it's fed this
+  // synthetic (but internally consistent) payload directly instead.
+  demoPayload?: ApiStartupDraftPayload
 }
 
 type StartupDraftState =
@@ -12,10 +15,16 @@ type StartupDraftState =
 
 const POSITION_ORDER: Record<string, number> = { QB: 0, RB: 1, WR: 2, TE: 3 }
 
-export default function StartupDraftReport({ leagueId }: Props) {
+export default function StartupDraftReport({ leagueId, demoPayload }: Props) {
   const [state, setState] = useState<StartupDraftState>({ status: 'loading' })
 
   useEffect(() => {
+    if (demoPayload) {
+      setState({ status: 'ready', payload: demoPayload })
+      return
+    }
+    if (!leagueId) return
+
     let cancelled = false
     setState({ status: 'loading' })
 
@@ -46,7 +55,7 @@ export default function StartupDraftReport({ leagueId }: Props) {
     return () => {
       cancelled = true
     }
-  }, [leagueId])
+  }, [leagueId, demoPayload])
 
   if (state.status === 'loading') {
     return (
@@ -80,6 +89,21 @@ export default function StartupDraftReport({ leagueId }: Props) {
   return (
     <div className="screen-enter">
       <PageHeader season={payload.season} />
+      {demoPayload && (
+        <div
+          style={{
+            marginBottom: 16,
+            fontSize: 12,
+            color: '#f0b429',
+            background: 'rgba(240,180,41,0.08)',
+            border: '1px solid rgba(240,180,41,0.2)',
+            borderRadius: 8,
+            padding: '8px 12px',
+          }}
+        >
+          Illustrative demo data — not a real startup draft.
+        </div>
+      )}
       <RisersFallersHighlights picks={payload.picks} />
       <FullPicksTable picks={payload.picks} />
     </div>

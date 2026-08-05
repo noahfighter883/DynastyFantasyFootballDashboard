@@ -4,6 +4,8 @@ import {
   buildLeagueFromApiPayload,
   type ApiLeaguePayload,
 } from "./data/leagueData";
+import { DEMO_LEAGUE_HISTORY } from "./data/demoLeagueHistoryData";
+import { DEMO_STARTUP_DRAFT } from "./data/demoStartupDraftData";
 import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
@@ -284,7 +286,7 @@ export default function App() {
                 className="app-header-badge"
                 title={
                   isDemo
-                    ? "League History and Startup Draft need real multi-season Sleeper data, so they're hidden in the demo -- connect your own league to see them"
+                    ? "Demo League Overview / Position Comparison / Feasibility use real current rosters -- League History and Startup Draft show illustrative made-up data, since there's no real multi-season Sleeper history to walk in a demo"
                     : undefined
                 }
                 style={{
@@ -327,8 +329,8 @@ export default function App() {
                   id: "feasibility",
                   label: "Feasibility",
                 },
-                ...(isDemo ? [] : [{ id: "history", label: "League History" }]),
-                ...(isDemo ? [] : [{ id: "startupDraft", label: "Startup Draft" }]),
+                { id: "history", label: "League History" },
+                { id: "startupDraft", label: "Startup Draft" },
               ] as { id: Screen; label: string }[]
             ).map(({ id, label }) => (
               <button
@@ -455,15 +457,19 @@ export default function App() {
             onSelectTeam={goToTeam}
           />
         )}
-        {screen === "history" && leagueId && (
+        {screen === "history" && (
           <LeagueHistory
             leagueId={leagueId}
+            demoPayload={isDemo ? DEMO_LEAGUE_HISTORY : undefined}
             selectedOwnerId={selectedOwnerId}
             onSelectOwner={setSelectedOwnerId}
           />
         )}
-        {screen === "startupDraft" && leagueId && (
-          <StartupDraftReport leagueId={leagueId} />
+        {screen === "startupDraft" && (
+          <StartupDraftReport
+            leagueId={leagueId}
+            demoPayload={isDemo ? DEMO_STARTUP_DRAFT : undefined}
+          />
         )}
       </main>
 

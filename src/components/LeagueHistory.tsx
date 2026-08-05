@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ApiLeagueHistoryPayload, OwnerHistory } from '../data/leagueHistoryData'
 
 interface Props {
-  leagueId: string
+  leagueId: string | null
+  // Demo league has no real Sleeper league to fetch, so it's fed this
+  // synthetic (but internally consistent) payload directly instead.
+  demoPayload?: ApiLeagueHistoryPayload
   selectedOwnerId: string | null
   onSelectOwner: (id: string | null) => void
 }
@@ -23,13 +26,20 @@ function ordinal(n: number): string {
   }
 }
 
-export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner }: Props) {
+export default function LeagueHistory({ leagueId, demoPayload, selectedOwnerId, onSelectOwner }: Props) {
   const [state, setState] = useState<HistoryState>({ status: 'loading' })
 
   useEffect(() => {
+    onSelectOwner(null)
+
+    if (demoPayload) {
+      setState({ status: 'ready', payload: demoPayload })
+      return
+    }
+    if (!leagueId) return
+
     let cancelled = false
     setState({ status: 'loading' })
-    onSelectOwner(null)
 
     ;(async () => {
       try {
@@ -58,7 +68,7 @@ export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner
     return () => {
       cancelled = true
     }
-  }, [leagueId])
+  }, [leagueId, demoPayload])
 
   if (state.status === 'loading') {
     return (
@@ -95,6 +105,22 @@ export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner
   return (
     <div className="screen-enter">
       <PageHeader />
+
+      {demoPayload && (
+        <div
+          style={{
+            marginBottom: 16,
+            fontSize: 12,
+            color: '#f0b429',
+            background: 'rgba(240,180,41,0.08)',
+            border: '1px solid rgba(240,180,41,0.2)',
+            borderRadius: 8,
+            padding: '8px 12px',
+          }}
+        >
+          Illustrative demo data — not a real multi-season league history.
+        </div>
+      )}
 
       {payload.current_season_excluded && (
         <div style={{ marginBottom: 16, fontSize: 12, color: '#6b7280', fontFamily: 'JetBrains Mono, monospace' }}>
