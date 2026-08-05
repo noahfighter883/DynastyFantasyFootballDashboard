@@ -4,8 +4,6 @@ import {
   buildLeagueFromApiPayload,
   type ApiLeaguePayload,
 } from "./data/leagueData";
-import { DEMO_LEAGUE_HISTORY } from "./data/demoLeagueHistoryData";
-import { DEMO_STARTUP_DRAFT } from "./data/demoStartupDraftData";
 import LeagueOverview from "./components/LeagueOverview";
 import TeamDetail from "./components/TeamDetail";
 import PositionComparison from "./components/PositionComparison";
@@ -18,6 +16,11 @@ import type { Screen, Position, Team, SortScope, SortMetric } from "./types";
 
 const LAST_LEAGUE_KEY = "dynastyevaluator:lastLeagueId";
 const DEMO_SEASON = "2026";
+// The demo league's roster data (src/data/leagueData.ts) is a frozen
+// snapshot of this same real Sleeper league, so League History and Startup
+// Draft -- which need a real multi-season chain to walk -- fetch live from
+// the real league_id instead of faking a draft/standings history.
+const DEMO_HISTORY_LEAGUE_ID = "1312205516633554944";
 
 // Sleeper league IDs are long numeric snowflakes; pull one out of a pasted
 // URL (e.g. https://sleeper.com/leagues/1312205516633554944/team) or accept
@@ -284,11 +287,6 @@ export default function App() {
               </span>
               <span
                 className="app-header-badge"
-                title={
-                  isDemo
-                    ? "Demo League Overview / Position Comparison / Feasibility use real current rosters -- League History and Startup Draft show illustrative made-up data, since there's no real multi-season Sleeper history to walk in a demo"
-                    : undefined
-                }
                 style={{
                   fontSize: 11,
                   fontFamily: "JetBrains Mono, monospace",
@@ -459,17 +457,13 @@ export default function App() {
         )}
         {screen === "history" && (
           <LeagueHistory
-            leagueId={leagueId}
-            demoPayload={isDemo ? DEMO_LEAGUE_HISTORY : undefined}
+            leagueId={isDemo ? DEMO_HISTORY_LEAGUE_ID : leagueId}
             selectedOwnerId={selectedOwnerId}
             onSelectOwner={setSelectedOwnerId}
           />
         )}
         {screen === "startupDraft" && (
-          <StartupDraftReport
-            leagueId={leagueId}
-            demoPayload={isDemo ? DEMO_STARTUP_DRAFT : undefined}
-          />
+          <StartupDraftReport leagueId={isDemo ? DEMO_HISTORY_LEAGUE_ID : leagueId} />
         )}
       </main>
 
