@@ -81,7 +81,16 @@ export default function LeagueEntry({ loading, error, onSubmit, onDemo }: Props)
               fontSize: 14,
               fontWeight: 600,
               cursor: loading || !value.trim() ? 'default' : 'pointer',
-              transition: 'background 0.15s',
+              transition: 'background 0.15s, transform 120ms ease-out',
+            }}
+            onMouseDown={(e) => {
+              if (!loading && value.trim()) (e.currentTarget as HTMLElement).style.transform = 'scale(0.98)'
+            }}
+            onMouseUp={(e) => {
+              ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
+            }}
+            onMouseLeave={(e) => {
+              ;(e.currentTarget as HTMLElement).style.transform = 'scale(1)'
             }}
           >
             {loading ? 'Loading your league…' : 'Generate My Dashboard'}
@@ -90,6 +99,7 @@ export default function LeagueEntry({ loading, error, onSubmit, onDemo }: Props)
 
         {error && (
           <p
+            className="row-enter"
             style={{
               marginTop: 12,
               fontSize: 13,

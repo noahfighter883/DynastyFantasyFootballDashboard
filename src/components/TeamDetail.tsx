@@ -428,7 +428,7 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
       </div>
 
       {view === 'cards' && (
-        <>
+        <div className="row-enter">
           {/* Metric toggle */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
             <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 500 }}>Metric:</span>
@@ -479,12 +479,13 @@ export default function TeamDetail({ team, cameFrom = 'overview', initialPosFilt
               />
             ))}
           </div>
-        </>
+        </div>
       )}
 
       {/* Draft capital curve */}
       {view === 'chart' && (
         <div
+          className="row-enter"
           style={{
             background: '#131a2b',
             border: '1px solid #232c47',
@@ -805,8 +806,10 @@ function PlayerRow({
       </div>
 
       {/* Acquisition type -- undefined while loading (or no league to look
-          it up for), null once loaded with no matching record at all */}
-      <div>
+          it up for), null once loaded with no matching record at all. Keyed
+          so this div only remounts (and fades in) the moment it resolves
+          from undefined -- not on every unrelated re-render afterward. */}
+      <div key={acquisition === undefined ? 'loading' : 'loaded'} className={acquisition !== undefined ? 'row-enter' : undefined}>
         {acquisition && (
           <span
             title={

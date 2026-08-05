@@ -83,7 +83,7 @@ export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner
 
   if (payload.owners.length === 0) {
     return (
-      <div>
+      <div className="screen-enter">
         <PageHeader />
         <div style={{ padding: '60px 0', textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
           No completed seasons yet for this league.
@@ -93,7 +93,7 @@ export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner
   }
 
   return (
-    <div>
+    <div className="screen-enter">
       <PageHeader />
 
       {payload.current_season_excluded && (
@@ -103,9 +103,13 @@ export default function LeagueHistory({ leagueId, selectedOwnerId, onSelectOwner
       )}
 
       {selectedOwner ? (
-        <OwnerDetail owner={selectedOwner} />
+        <div className="screen-enter">
+          <OwnerDetail owner={selectedOwner} />
+        </div>
       ) : (
-        <AllTimeTable owners={payload.owners} onSelectOwner={onSelectOwner} />
+        <div className="screen-enter">
+          <AllTimeTable owners={payload.owners} onSelectOwner={onSelectOwner} />
+        </div>
       )}
     </div>
   )

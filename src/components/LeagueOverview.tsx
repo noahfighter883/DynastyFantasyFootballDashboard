@@ -383,6 +383,7 @@ export default function LeagueOverview({
                       width: `${barPct}%`,
                       background: metric === 'dynasty' ? '#6366f1' : metric === 'redraft' ? '#3b82f6' : '#10b981',
                       borderRadius: 2,
+                      transition: 'width 200ms ease-out',
                     }}
                   />
                 </div>

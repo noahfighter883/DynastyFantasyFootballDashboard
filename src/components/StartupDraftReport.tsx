@@ -68,7 +68,7 @@ export default function StartupDraftReport({ leagueId }: Props) {
 
   if (!payload.has_startup_draft || payload.picks.length === 0) {
     return (
-      <div>
+      <div className="screen-enter">
         <PageHeader season={payload.season} />
         <div style={{ padding: '60px 0', textAlign: 'center', color: '#8b93a8', fontSize: 13 }}>
           No completed startup draft found for this league.
@@ -78,7 +78,7 @@ export default function StartupDraftReport({ leagueId }: Props) {
   }
 
   return (
-    <div>
+    <div className="screen-enter">
       <PageHeader season={payload.season} />
       <RisersFallersHighlights picks={payload.picks} />
       <FullPicksTable picks={payload.picks} />

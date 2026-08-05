@@ -384,6 +384,7 @@ export default function PositionComparison({
                       background: posColor,
                       opacity: 0.85,
                       borderRadius: 3,
+                      transition: 'width 200ms ease-out',
                     }}
                   />
                 </div>
@@ -477,6 +478,7 @@ export default function PositionComparison({
                           background: POS_COLORS[p],
                           opacity: 0.7,
                           borderRadius: 2,
+                          transition: 'width 200ms ease-out',
                         }}
                       />
                     </div>
