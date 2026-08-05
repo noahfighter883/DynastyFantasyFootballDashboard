@@ -143,6 +143,9 @@ interface ColumnDef {
   // (standings vs. league-activity stats) so the wall of numbers reads as
   // two sections instead of one flat list.
   groupStart?: boolean
+  // Shown by default; the rest are revealed behind a "Show all columns"
+  // toggle so a first glance isn't 10 same-weight numbers at once.
+  core?: boolean
   defaultDir: 'asc' | 'desc'
   sortValue: (o: OwnerHistory) => number
   render: (o: OwnerHistory) => React.ReactNode
@@ -158,6 +161,7 @@ const COLUMNS: ColumnDef[] = [
     label: 'AVG FINISH',
     width: '90px',
     description: 'Average final standing across every completed season (1 = best)',
+    core: true,
     defaultDir: 'asc',
     sortValue: (o) => o.avg_finish ?? Infinity,
     render: (o) => (o.avg_finish != null ? o.avg_finish.toFixed(1) : '—'),
@@ -177,6 +181,7 @@ const COLUMNS: ColumnDef[] = [
     label: 'TITLES',
     width: '80px',
     description: 'Championships won (1st place after the playoff bracket)',
+    core: true,
     defaultDir: 'desc',
     sortValue: (o) => o.championships,
     render: (o) => o.championships,
@@ -204,6 +209,7 @@ const COLUMNS: ColumnDef[] = [
     label: 'RECORD',
     width: '100px',
     description: 'All-time regular-season win-loss record',
+    core: true,
     defaultDir: 'desc',
     sortValue: (o) => o.wins,
     render: (o) => `${o.wins}-${o.losses}${o.ties ? `-${o.ties}` : ''}`,
@@ -213,6 +219,7 @@ const COLUMNS: ColumnDef[] = [
     label: 'PT DIFF',
     width: '100px',
     description: 'All-time points scored minus points allowed',
+    core: true,
     defaultDir: 'desc',
     sortValue: (o) => o.point_differential,
     render: (o) => (o.point_differential > 0 ? `+${o.point_differential.toFixed(0)}` : o.point_differential.toFixed(0)),
@@ -247,13 +254,24 @@ const COLUMNS: ColumnDef[] = [
   },
 ]
 
+const CORE_COLUMNS = COLUMNS.filter((c) => c.core)
+const COLUMN_GAP = 16
+
 // minmax(0, 1fr), not a bare 1fr -- the header and every row are each their
 // own independent grid container, so without this a bare 1fr's implicit
 // min-width:auto lets each one size the TEAM/OWNER column to its own
 // content's minimum width, making the column a different actual pixel
 // width per row and throwing off alignment with the header (see the same
 // fix/explanation in StartupDraftReport.tsx).
-const GRID_TEMPLATE = `44px minmax(0, 1fr) ${COLUMNS.map((c) => c.width).join(' ')}`
+function gridTemplate(columns: ColumnDef[]): string {
+  return `44px minmax(0, 1fr) ${columns.map((c) => c.width).join(' ')}`
+}
+
+function tableMinWidth(columns: ColumnDef[]): number {
+  const fixed = columns.reduce((sum, c) => sum + parseInt(c.width, 10), 0)
+  const gaps = (columns.length + 1) * COLUMN_GAP
+  return 44 + 220 + fixed + gaps
+}
 
 function AllTimeTable({
   owners,
@@ -263,6 +281,10 @@ function AllTimeTable({
   onSelectOwner: (id: string) => void
 }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'avg_finish', dir: 'asc' })
+  const [showAllColumns, setShowAllColumns] = useState(false)
+  const visibleColumns = showAllColumns ? COLUMNS : CORE_COLUMNS
+  const gridTemplateColumns = gridTemplate(visibleColumns)
+  const minWidth = tableMinWidth(visibleColumns)
 
   const sortedOwners = useMemo(() => {
     const column = COLUMNS.find((c) => c.key === sort.key)
@@ -281,21 +303,42 @@ function AllTimeTable({
 
   return (
     <>
+    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
+      <button
+        type="button"
+        onClick={() => setShowAllColumns((v) => !v)}
+        aria-pressed={showAllColumns}
+        style={{
+          fontFamily: 'JetBrains Mono, monospace',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.04em',
+          padding: '6px 10px',
+          borderRadius: 6,
+          border: '1px solid #232c47',
+          background: 'transparent',
+          color: '#8b93a8',
+          cursor: 'pointer',
+        }}
+      >
+        {showAllColumns ? 'Show fewer columns' : 'Show all columns'}
+      </button>
+    </div>
     <div
       className="table-scroll"
       style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }}
       role="table"
       aria-label="All-time league standings"
     >
-      <div style={{ minWidth: 980 }}>
+      <div style={{ minWidth }}>
         <div
           role="row"
           style={{
             display: 'grid',
-            gridTemplateColumns: GRID_TEMPLATE,
+            gridTemplateColumns,
             padding: '10px 20px',
             borderBottom: '1px solid #232c47',
-            gap: 16,
+            gap: COLUMN_GAP,
             alignItems: 'center',
           }}
         >
@@ -323,7 +366,7 @@ function AllTimeTable({
           >
             TEAM / OWNER
           </span>
-          {COLUMNS.map((col) => {
+          {visibleColumns.map((col) => {
             const active = sort.key === col.key
             const dir = active ? sort.dir : col.defaultDir
             const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -343,8 +386,8 @@ function AllTimeTable({
                   background: 'none',
                   border: 'none',
                   borderLeft: col.groupStart ? '1px solid #232c47' : 'none',
-                  paddingLeft: col.groupStart ? 16 : 0,
-                  marginLeft: col.groupStart ? -16 : 0,
+                  paddingLeft: col.groupStart ? COLUMN_GAP : 0,
+                  marginLeft: col.groupStart ? -COLUMN_GAP : 0,
                   cursor: 'pointer',
                   fontSize: 10,
                   fontWeight: 600,
@@ -369,13 +412,13 @@ function AllTimeTable({
             className="row-enter"
             style={{
               display: 'grid',
-              gridTemplateColumns: GRID_TEMPLATE,
+              gridTemplateColumns,
               width: '100%',
               padding: '14px 20px',
               border: 'none',
               borderBottom: idx < sortedOwners.length - 1 ? '1px solid #1b2438' : 'none',
               background: 'transparent',
-              gap: 16,
+              gap: COLUMN_GAP,
               alignItems: 'center',
               textAlign: 'left',
               cursor: 'pointer',
@@ -425,15 +468,15 @@ function AllTimeTable({
               </div>
             </div>
 
-            {COLUMNS.map((col) => (
+            {visibleColumns.map((col) => (
               <div
                 key={col.key}
                 style={{
                   fontFamily: 'JetBrains Mono, monospace',
                   fontSize: 13,
                   borderLeft: col.groupStart ? '1px solid #1b2438' : 'none',
-                  paddingLeft: col.groupStart ? 16 : 0,
-                  marginLeft: col.groupStart ? -16 : 0,
+                  paddingLeft: col.groupStart ? COLUMN_GAP : 0,
+                  marginLeft: col.groupStart ? -COLUMN_GAP : 0,
                   color:
                     col.key === 'championships' && owner.championships > 0
                       ? '#fbbf24'
