@@ -30,8 +30,12 @@ export function acquisitionDetail(a: Acquisition): string | null {
 }
 
 export function acquisitionStyle(type: AcquisitionType): { color: string; background: string } {
+  // Startup Draft and Rookie Draft used to sit right next to each other on
+  // the indigo/purple spectrum (#818cf8 / #a78bfa) -- easy to mix up at a
+  // glance, especially as adjacent bars in a chart. Rookie Draft moved to
+  // pink so the two draft types are distinguishable by hue, not just shade.
   if (type === 'Startup Draft') return { color: '#818cf8', background: 'rgba(129,140,248,0.1)' }
-  if (type === 'Rookie Draft') return { color: '#a78bfa', background: 'rgba(167,139,250,0.1)' }
+  if (type === 'Rookie Draft') return { color: '#f472b6', background: 'rgba(244,114,182,0.1)' }
   if (type === 'Trade') return { color: '#fb923c', background: 'rgba(251,146,60,0.1)' }
   return { color: '#34d399', background: 'rgba(52,211,153,0.08)' }
 }
