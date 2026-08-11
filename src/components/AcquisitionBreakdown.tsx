@@ -1,7 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Team } from '../types'
+import type { Team, Player, Position, SortScope } from '../types'
 import type { AcquisitionMap, AcquisitionType } from '../data/acquisitionsData'
 import { ACQUISITION_TYPES, acquisitionStyle } from '../data/acquisitionsData'
+
+const POSITIONS: Position[] = ['QB', 'RB', 'WR', 'TE']
+
+// "Starters +1" adds the single best bench player per position (by dynasty
+// rank -- the app's default value lens) on top of the real starters, same
+// concept as the +1 scope elsewhere in the app (see TeamDetail.tsx's
+// dynamicStartersAndPlus1), just without exposing a separate metric toggle
+// here since this table isn't ranking anything.
+function selectScopedPlayers(players: Player[], scope: SortScope): Player[] {
+  if (scope === 'roster') return players
+  const starters = players.filter((p) => p.isStarter)
+  if (scope === 'starters') return starters
+  const plus1: Player[] = []
+  for (const pos of POSITIONS) {
+    const bench = players
+      .filter((p) => p.position === pos && !p.isStarter)
+      .sort((a, b) => a.dynastyOverallRank - b.dynastyOverallRank)
+    if (bench.length > 0) plus1.push(bench[0])
+  }
+  return [...starters, ...plus1]
+}
 
 interface Props {
   teams: Team[]
@@ -37,10 +58,11 @@ function styleFor(key: CountKey): { color: string; background: string } {
   return key === UNATTRIBUTED ? unattributedStyle() : acquisitionStyle(key)
 }
 
-function computeTeamCounts(teams: Team[], acquisitions: AcquisitionMap): TeamAcquisitionCounts[] {
+function computeTeamCounts(teams: Team[], acquisitions: AcquisitionMap, scope: SortScope): TeamAcquisitionCounts[] {
   return teams.map((team) => {
     const counts = { 'Startup Draft': 0, 'Rookie Draft': 0, Trade: 0, Waiver: 0, Unattributed: 0 } as Record<CountKey, number>
-    team.players.forEach((p) => {
+    const scopedPlayers = selectScopedPlayers(team.players, scope)
+    scopedPlayers.forEach((p) => {
       const entry = acquisitions[p.id]
       const key: CountKey = entry?.type ?? UNATTRIBUTED
       counts[key] += 1
@@ -50,7 +72,7 @@ function computeTeamCounts(teams: Team[], acquisitions: AcquisitionMap): TeamAcq
       teamName: team.name,
       ownerName: team.owner,
       counts,
-      total: team.players.length,
+      total: scopedPlayers.length,
     }
   })
 }
@@ -191,12 +213,51 @@ function Legend() {
   )
 }
 
+function ScopeToggle({ scope, onChange }: { scope: SortScope; onChange: (s: SortScope) => void }) {
+  return (
+    <div
+      style={{
+        display: 'inline-flex',
+        background: '#131a2b',
+        border: '1px solid #232c47',
+        borderRadius: 7,
+        padding: 3,
+        gap: 2,
+        marginBottom: 20,
+      }}
+    >
+      {(['starters', 'starters_plus1', 'roster'] as SortScope[]).map((s) => (
+        <button
+          key={s}
+          onClick={() => onChange(s)}
+          aria-pressed={scope === s}
+          style={{
+            padding: '5px 14px',
+            borderRadius: 5,
+            fontSize: 12,
+            fontWeight: scope === s ? 600 : 400,
+            background: scope === s ? '#3b82f6' : 'transparent',
+            color: scope === s ? '#fff' : '#6b7280',
+            border: 'none',
+            cursor: 'pointer',
+            transition: 'all 0.15s',
+          }}
+        >
+          {s === 'starters' ? 'Starters Only' : s === 'starters_plus1' ? 'Starters +1' : 'Full Roster'}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function TeamBreakdown({ teams, acquisitions }: { teams: Team[]; acquisitions: AcquisitionMap }) {
-  const counts = useMemo(() => computeTeamCounts(teams, acquisitions), [teams, acquisitions])
+  const [scope, setScope] = useState<SortScope>('roster')
+  const counts = useMemo(() => computeTeamCounts(teams, acquisitions, scope), [teams, acquisitions, scope])
   const chartRows = useMemo(() => [...counts].sort((a, b) => a.teamName.localeCompare(b.teamName)), [counts])
 
   return (
     <div>
+      <ScopeToggle scope={scope} onChange={setScope} />
       <Legend />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
         {chartRows.map((row) => (
