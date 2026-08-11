@@ -17,7 +17,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from DynastyLeagueDataFetcher import (  # noqa: E402
     InvalidInputError,
+    RateLimitError,
     UserNotFoundError,
+    check_rate_limit,
     find_leagues_for_username,
 )
 
@@ -26,6 +28,12 @@ CACHE_CONTROL = "public, s-maxage=1800, stale-while-revalidate=3600"
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        try:
+            check_rate_limit(f"username:{self._client_ip()}")
+        except RateLimitError as e:
+            self._send_json(429, {"error": str(e)})
+            return
+
         query = parse_qs(urlparse(self.path).query)
         username = (query.get("username") or [""])[0].strip()
         season = (query.get("season") or [None])[0]
@@ -56,6 +64,10 @@ class handler(BaseHTTPRequestHandler):
 
         self._send_json(200, {"username": username, "leagues": leagues}, cache=True)
 
+    def _client_ip(self):
+        forwarded = self.headers.get("x-forwarded-for", "")
+        return forwarded.split(",")[0].strip() or self.client_address[0]
+
     def _send_json(self, status, payload, cache=False):
         body = json.dumps(payload).encode()
         self.send_response(status)
@@ -64,5 +76,7 @@ class handler(BaseHTTPRequestHandler):
         # Explicit either way -- a transient failure must never get cached
         # and served to other users.
         self.send_header("Cache-Control", CACHE_CONTROL if cache else "no-store")
+        if status == 429:
+            self.send_header("Retry-After", "60")
         self.end_headers()
         self.wfile.write(body)

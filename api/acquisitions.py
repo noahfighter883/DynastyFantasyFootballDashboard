@@ -22,7 +22,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from DynastyLeagueDataFetcher import (  # noqa: E402
     InvalidInputError,
     LeagueNotFoundError,
+    RateLimitError,
     build_acquisition_map,
+    check_rate_limit,
 )
 
 # Includes the current (possibly still-active) season's transactions, so
@@ -33,6 +35,12 @@ CACHE_CONTROL = "public, s-maxage=1800, stale-while-revalidate=3600"
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        try:
+            check_rate_limit(f"acquisitions:{self._client_ip()}")
+        except RateLimitError as e:
+            self._send_json(429, {"error": str(e)})
+            return
+
         query = parse_qs(urlparse(self.path).query)
         league_id = (query.get("league_id") or [""])[0].strip()
 
@@ -64,11 +72,17 @@ class handler(BaseHTTPRequestHandler):
 
         self._send_json(200, data, cache=True)
 
+    def _client_ip(self):
+        forwarded = self.headers.get("x-forwarded-for", "")
+        return forwarded.split(",")[0].strip() or self.client_address[0]
+
     def _send_json(self, status, payload, cache=False):
         body = json.dumps(payload).encode()
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", CACHE_CONTROL if cache else "no-store")
+        if status == 429:
+            self.send_header("Retry-After", "60")
         self.end_headers()
         self.wfile.write(body)

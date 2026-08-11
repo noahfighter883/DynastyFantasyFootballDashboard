@@ -106,6 +106,29 @@ def _cached(key, fetch_fn, max_age_seconds=MEMORY_CACHE_MAX_AGE_SECONDS):
     return data
 
 
+class RateLimitError(Exception):
+    pass
+
+
+# Best-effort per-warm-instance rate limiting, same in-memory-dict shape as
+# _MEMORY_CACHE above. Vercel serverless functions are stateless across cold
+# starts and may run as several concurrent instances, so this isn't a hard
+# guarantee against a determined attacker spreading requests across many
+# container spins -- but it stops the common case (a single client hammering
+# an endpoint on a warm instance), which is what actually drives up Sleeper
+# API traffic and function compute time.
+_RATE_LIMIT_BUCKETS = {}
+
+
+def check_rate_limit(key, max_requests=20, window_seconds=60):
+    now = time.time()
+    timestamps = [t for t in _RATE_LIMIT_BUCKETS.get(key, []) if now - t < window_seconds]
+    if len(timestamps) >= max_requests:
+        raise RateLimitError("Too many requests. Please wait a moment and try again.")
+    timestamps.append(now)
+    _RATE_LIMIT_BUCKETS[key] = timestamps
+
+
 # Completed seasons are immutable -- a much longer TTL is safe for them,
 # unlike the current (possibly still in-progress) season.
 HISTORY_MEMORY_CACHE_MAX_AGE_SECONDS = 24 * 3600
