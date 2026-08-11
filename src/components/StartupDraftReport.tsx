@@ -318,10 +318,21 @@ function matchesSearch(pick: StartupDraftPick, query: string): boolean {
   )
 }
 
+function uniqueTeamNames(picks: StartupDraftPick[], key: 'drafted_by_team_name' | 'current_team_name'): string[] {
+  const names = new Set<string>()
+  picks.forEach((p) => {
+    const name = p[key]
+    if (name) names.add(name)
+  })
+  return Array.from(names).sort((a, b) => a.localeCompare(b))
+}
+
 function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'round_pick', dir: 'asc' })
   const [showAllColumns, setShowAllColumns] = useState(false)
   const [positionFilter, setPositionFilter] = useState<PositionFilter>('ALL')
+  const [draftedByFilter, setDraftedByFilter] = useState('ALL')
+  const [currentTeamFilter, setCurrentTeamFilter] = useState('ALL')
   const [search, setSearch] = useState('')
   const headerScrollRef = useRef<HTMLDivElement>(null)
   const bodyScrollRef = useRef<HTMLDivElement>(null)
@@ -330,11 +341,18 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
   const gridTemplateColumns = gridTemplate(visibleColumns)
   const minWidth = tableMinWidth(visibleColumns)
 
+  const draftedByOptions = useMemo(() => uniqueTeamNames(picks, 'drafted_by_team_name'), [picks])
+  const currentTeamOptions = useMemo(() => uniqueTeamNames(picks, 'current_team_name'), [picks])
+
   const filteredPicks = useMemo(() => {
     return picks.filter(
-      (p) => (positionFilter === 'ALL' || p.position === positionFilter) && matchesSearch(p, search)
+      (p) =>
+        (positionFilter === 'ALL' || p.position === positionFilter) &&
+        (draftedByFilter === 'ALL' || p.drafted_by_team_name === draftedByFilter) &&
+        (currentTeamFilter === 'ALL' || p.current_team_name === currentTeamFilter) &&
+        matchesSearch(p, search)
     )
-  }, [picks, positionFilter, search])
+  }, [picks, positionFilter, draftedByFilter, currentTeamFilter, search])
 
   const sortedPicks = useMemo(() => {
     const column = COLUMNS.find((c) => c.key === sort.key)
@@ -430,6 +448,50 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
             color: '#e2e4e9',
           }}
         />
+
+        <select
+          value={draftedByFilter}
+          onChange={(e) => setDraftedByFilter(e.target.value)}
+          aria-label="Filter by drafted-by team"
+          style={{
+            fontSize: 12,
+            padding: '6px 10px',
+            borderRadius: 6,
+            border: '1px solid #232c47',
+            background: '#0d1120',
+            color: draftedByFilter === 'ALL' ? '#8b93a8' : '#e2e4e9',
+            maxWidth: 160,
+          }}
+        >
+          <option value="ALL">Drafted by: all teams</option>
+          {draftedByOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
+
+        <select
+          value={currentTeamFilter}
+          onChange={(e) => setCurrentTeamFilter(e.target.value)}
+          aria-label="Filter by current team"
+          style={{
+            fontSize: 12,
+            padding: '6px 10px',
+            borderRadius: 6,
+            border: '1px solid #232c47',
+            background: '#0d1120',
+            color: currentTeamFilter === 'ALL' ? '#8b93a8' : '#e2e4e9',
+            maxWidth: 160,
+          }}
+        >
+          <option value="ALL">Current team: all teams</option>
+          {currentTeamOptions.map((name) => (
+            <option key={name} value={name}>
+              {name}
+            </option>
+          ))}
+        </select>
 
         <span style={{ fontSize: 12, color: '#8b93a8', marginLeft: 'auto' }}>
           {sortedPicks.length} of {picks.length} players
@@ -569,7 +631,11 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
         >
           {sortedPicks.length === 0 ? (
             <div style={{ padding: '48px 0', textAlign: 'center', color: '#8b93a8', fontSize: 13 }}>
-              No players match "{search}"{positionFilter !== 'ALL' ? ` at ${positionFilter}` : ''}.
+              No players match the current filters
+              {search ? ` (search "${search}")` : ''}
+              {positionFilter !== 'ALL' ? ` · ${positionFilter}` : ''}
+              {draftedByFilter !== 'ALL' ? ` · drafted by ${draftedByFilter}` : ''}
+              {currentTeamFilter !== 'ALL' ? ` · on ${currentTeamFilter}` : ''}.
             </div>
           ) : (
             <div style={{ minWidth }}>
