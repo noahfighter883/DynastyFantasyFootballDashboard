@@ -253,48 +253,165 @@ function ScopeToggle({ scope, onChange }: { scope: SortScope; onChange: (s: Sort
 function TeamBreakdown({ teams, acquisitions }: { teams: Team[]; acquisitions: AcquisitionMap }) {
   const [scope, setScope] = useState<SortScope>('roster')
   const counts = useMemo(() => computeTeamCounts(teams, acquisitions, scope), [teams, acquisitions, scope])
-  const chartRows = useMemo(() => [...counts].sort((a, b) => a.teamName.localeCompare(b.teamName)), [counts])
 
   return (
     <div>
       <ScopeToggle scope={scope} onChange={setScope} />
       <Legend />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 32 }}>
-        {chartRows.map((row) => (
-          <div key={row.teamId} className="row-enter" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 160, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              <div style={{ fontWeight: 600, fontSize: 13 }} title={row.teamName}>
-                {row.teamName}
-              </div>
-              <div style={{ fontSize: 11, color: '#6b7280' }}>{row.ownerName}</div>
-            </div>
-            <div style={{ flex: 1, display: 'flex', height: 16, borderRadius: 4, overflow: 'hidden', background: '#131a2b' }}>
-              {COUNT_KEYS.map((key) => {
-                const count = row.counts[key]
-                if (count === 0) return null
-                const pct = row.total > 0 ? (count / row.total) * 100 : 0
-                const { color } = styleFor(key)
-                return (
-                  <div
-                    key={key}
-                    title={`${key}: ${count}`}
-                    style={{
-                      width: `${pct}%`,
-                      background: color,
-                      transition: 'width 200ms ease-out',
-                    }}
-                  />
-                )
-              })}
-            </div>
-            <div style={{ width: 36, flexShrink: 0, textAlign: 'right', fontSize: 12, color: '#8b93a8', fontFamily: 'JetBrains Mono, monospace' }}>
-              {row.total}
+      <GroupedBarChart rows={counts} />
+      <TeamTable rows={counts} />
+    </div>
+  )
+}
+
+// Grouped vertical bar chart -- one cluster of bars per team (one bar per
+// acquisition type), same hand-built-SVG pattern as FeasibilityComparison's
+// chart. Unlike a stacked bar, each bar's height is the actual count, so
+// counts are directly comparable across teams, not just proportions within
+// one team's stretched-to-100% bar.
+const CHART_WIDTH = 1000
+const CHART_HEIGHT = 380
+const CHART_PADDING_LEFT = 40
+const CHART_PADDING_RIGHT = 16
+const CHART_PADDING_TOP = 16
+const CHART_PADDING_BOTTOM = 80
+
+function computeCountAxis(rawMax: number): { step: number; axisMax: number } {
+  const withHeadroom = Math.max(1, rawMax) * 1.15
+  const step = Math.ceil(withHeadroom / 8) <= 4 ? 2 : Math.ceil(withHeadroom / 8) <= 8 ? 4 : 5
+  const axisMax = Math.ceil(withHeadroom / step) * step
+  return { step, axisMax }
+}
+
+function truncateTeamName(name: string, max = 12): string {
+  return name.length > max ? `${name.slice(0, max - 1)}…` : name
+}
+
+interface ChartHover {
+  teamId: string
+  key: CountKey
+  value: number
+  x: number
+  y: number
+}
+
+function GroupedBarChart({ rows }: { rows: TeamAcquisitionCounts[] }) {
+  const [hovered, setHovered] = useState<ChartHover | null>(null)
+  const sorted = useMemo(() => [...rows].sort((a, b) => a.teamName.localeCompare(b.teamName)), [rows])
+
+  const allValues = sorted.flatMap((r) => COUNT_KEYS.map((k) => r.counts[k]))
+  const { step: yStep, axisMax: maxVal } = computeCountAxis(Math.max(1, ...allValues))
+
+  const chartW = CHART_WIDTH - CHART_PADDING_LEFT - CHART_PADDING_RIGHT
+  const chartH = CHART_HEIGHT - CHART_PADDING_TOP - CHART_PADDING_BOTTOM
+  const n = sorted.length
+  const groupW = n > 0 ? chartW / n : chartW
+  const barGap = 2
+  const barW = (groupW - 12 - barGap * (COUNT_KEYS.length - 1)) / COUNT_KEYS.length
+
+  const yFor = (val: number) => CHART_PADDING_TOP + chartH - (val / maxVal) * chartH
+  const barHeight = (val: number) => (val / maxVal) * chartH
+
+  const tickVals = Array.from({ length: maxVal / yStep + 1 }, (_, i) => i * yStep)
+
+  return (
+    <div style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10, padding: '18px 20px', marginBottom: 32 }}>
+      <div style={{ position: 'relative' }}>
+        <svg viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+          {tickVals.map((v) => (
+            <g key={v}>
+              <line
+                x1={CHART_PADDING_LEFT}
+                x2={CHART_WIDTH - CHART_PADDING_RIGHT}
+                y1={yFor(v)}
+                y2={yFor(v)}
+                stroke="#232c47"
+                strokeWidth={1}
+              />
+              <text
+                x={CHART_PADDING_LEFT - 8}
+                y={yFor(v)}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fontSize={10}
+                fontFamily="JetBrains Mono, monospace"
+                fill="#6b7280"
+              >
+                {v}
+              </text>
+            </g>
+          ))}
+
+          {sorted.map((row, i) => {
+            const groupX = CHART_PADDING_LEFT + i * groupW + 6
+            const labelX = CHART_PADDING_LEFT + i * groupW + groupW / 2
+
+            return (
+              <g key={row.teamId}>
+                {COUNT_KEYS.map((key, ki) => {
+                  const value = row.counts[key]
+                  const x = groupX + ki * (barW + barGap)
+                  const { color } = styleFor(key)
+                  const isHovered = hovered?.teamId === row.teamId && hovered.key === key
+                  return (
+                    <rect
+                      key={key}
+                      x={x}
+                      y={yFor(value)}
+                      width={barW}
+                      height={barHeight(value)}
+                      fill={color}
+                      opacity={isHovered ? 1 : 0.85}
+                      rx={1.5}
+                      style={{ cursor: 'default', transition: 'opacity 0.1s' }}
+                      onMouseEnter={() => setHovered({ teamId: row.teamId, key, value, x: x + barW / 2, y: yFor(value) })}
+                      onMouseLeave={() => setHovered(null)}
+                    />
+                  )
+                })}
+
+                <text
+                  x={labelX}
+                  y={CHART_HEIGHT - CHART_PADDING_BOTTOM + 14}
+                  textAnchor="end"
+                  fontSize={10}
+                  fontFamily="JetBrains Mono, monospace"
+                  fill="#a0a6b8"
+                  transform={`rotate(-40 ${labelX} ${CHART_HEIGHT - CHART_PADDING_BOTTOM + 14})`}
+                >
+                  {truncateTeamName(row.teamName)}
+                </text>
+              </g>
+            )
+          })}
+        </svg>
+
+        {hovered && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${(hovered.x / CHART_WIDTH) * 100}%`,
+              top: `${(hovered.y / CHART_HEIGHT) * 100}%`,
+              transform: 'translate(-50%, -130%)',
+              background: '#1a1d27',
+              border: `1px solid ${styleFor(hovered.key).color}`,
+              borderRadius: 6,
+              padding: '6px 10px',
+              fontSize: 11,
+              fontFamily: 'JetBrains Mono, monospace',
+              color: '#e2e4e9',
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          >
+            <div style={{ fontWeight: 600 }}>{sorted.find((r) => r.teamId === hovered.teamId)?.teamName}</div>
+            <div style={{ color: styleFor(hovered.key).color }}>
+              {hovered.key}: {hovered.value}
             </div>
           </div>
-        ))}
+        )}
       </div>
-
-      <TeamTable rows={counts} />
     </div>
   )
 }
