@@ -431,6 +431,10 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
           }}
         />
 
+        <span style={{ fontSize: 12, color: '#8b93a8', marginLeft: 'auto' }}>
+          {sortedPicks.length} of {picks.length} players
+        </span>
+
         <button
           type="button"
           onClick={() => setShowAllColumns((v) => !v)}
@@ -450,10 +454,6 @@ function FullPicksTable({ picks }: { picks: StartupDraftPick[] }) {
         >
           {showAllColumns ? 'Show fewer columns' : 'Show all columns'}
         </button>
-
-        <span style={{ fontSize: 12, color: '#8b93a8', marginLeft: 'auto' }}>
-          {sortedPicks.length} of {picks.length} players
-        </span>
       </div>
 
       <div
