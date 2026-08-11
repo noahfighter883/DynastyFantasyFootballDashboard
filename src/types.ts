@@ -74,4 +74,4 @@ export interface Team {
 
 export type SortScope = 'starters' | 'starters_plus1' | 'roster'
 export type SortMetric = 'dynasty' | 'redraft' | 'projected'
-export type Screen = 'overview' | 'team' | 'position' | 'feasibility' | 'history' | 'startupDraft'
+export type Screen = 'overview' | 'team' | 'position' | 'feasibility' | 'history' | 'startupDraft' | 'acquisitions'

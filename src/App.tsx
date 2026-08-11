@@ -10,6 +10,7 @@ import PositionComparison from "./components/PositionComparison";
 import FeasibilityComparison from "./components/FeasibilityComparison";
 import LeagueHistory from "./components/LeagueHistory";
 import StartupDraftReport from "./components/StartupDraftReport";
+import AcquisitionBreakdown from "./components/AcquisitionBreakdown";
 import LeagueEntry from "./components/LeagueEntry";
 import LeaguePicker, { type LeagueSummary } from "./components/LeaguePicker";
 import type { Screen, Position, Team, SortScope, SortMetric } from "./types";
@@ -329,6 +330,7 @@ export default function App() {
                 },
                 { id: "history", label: "League History" },
                 { id: "startupDraft", label: "Startup Draft" },
+                { id: "acquisitions", label: "Acquisitions" },
               ] as { id: Screen; label: string }[]
             ).map(({ id, label }) => (
               <button
@@ -464,6 +466,13 @@ export default function App() {
         )}
         {screen === "startupDraft" && (
           <StartupDraftReport leagueId={isDemo ? DEMO_HISTORY_LEAGUE_ID : leagueId} />
+        )}
+        {screen === "acquisitions" && (
+          // Deliberately not DEMO_HISTORY_LEAGUE_ID -- unlike History/Startup
+          // Draft, this screen cross-references `teams` (the demo league's
+          // synthetic player IDs) against the acquisitions map, which only
+          // resolves for the real league's real Sleeper player IDs.
+          <AcquisitionBreakdown teams={teams} leagueId={isDemo ? null : leagueId} />
         )}
       </main>
 
