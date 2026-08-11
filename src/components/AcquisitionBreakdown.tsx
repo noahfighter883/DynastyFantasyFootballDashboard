@@ -197,10 +197,10 @@ function PageHeader() {
   )
 }
 
-function Legend() {
+function Legend({ keys }: { keys: CountKey[] }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginBottom: 16 }}>
-      {COUNT_KEYS.map((key) => {
+      {keys.map((key) => {
         const { color } = styleFor(key)
         return (
           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -259,13 +259,20 @@ function ScopeToggle({ scope, onChange }: { scope: SortScope; onChange: (s: Sort
 function TeamBreakdown({ teams, acquisitions }: { teams: Team[]; acquisitions: AcquisitionMap }) {
   const [scope, setScope] = useState<SortScope>('roster')
   const counts = useMemo(() => computeTeamCounts(teams, acquisitions, scope), [teams, acquisitions, scope])
+  // Unattributed only earns a legend swatch, chart series, and table column
+  // when at least one team actually has one -- most leagues never do, and
+  // showing an always-empty category everywhere is just noise.
+  const visibleKeys = useMemo(
+    () => COUNT_KEYS.filter((k) => k !== UNATTRIBUTED || counts.some((r) => r.counts[UNATTRIBUTED] > 0)),
+    [counts]
+  )
 
   return (
     <div>
       <ScopeToggle scope={scope} onChange={setScope} />
-      <Legend />
-      <GroupedBarChart rows={counts} />
-      <TeamTable rows={counts} />
+      <Legend keys={visibleKeys} />
+      <GroupedBarChart rows={counts} keys={visibleKeys} />
+      <TeamTable rows={counts} keys={visibleKeys} />
     </div>
   )
 }
@@ -301,11 +308,11 @@ interface ChartHover {
   y: number
 }
 
-function GroupedBarChart({ rows }: { rows: TeamAcquisitionCounts[] }) {
+function GroupedBarChart({ rows, keys }: { rows: TeamAcquisitionCounts[]; keys: CountKey[] }) {
   const [hovered, setHovered] = useState<ChartHover | null>(null)
   const sorted = useMemo(() => [...rows].sort((a, b) => a.teamName.localeCompare(b.teamName)), [rows])
 
-  const allValues = sorted.flatMap((r) => COUNT_KEYS.map((k) => r.counts[k]))
+  const allValues = sorted.flatMap((r) => keys.map((k) => r.counts[k]))
   const { step: yStep, axisMax: maxVal } = computeCountAxis(Math.max(1, ...allValues))
 
   const chartW = CHART_WIDTH - CHART_PADDING_LEFT - CHART_PADDING_RIGHT
@@ -313,7 +320,7 @@ function GroupedBarChart({ rows }: { rows: TeamAcquisitionCounts[] }) {
   const n = sorted.length
   const groupW = n > 0 ? chartW / n : chartW
   const barGap = 2
-  const barW = (groupW - 12 - barGap * (COUNT_KEYS.length - 1)) / COUNT_KEYS.length
+  const barW = (groupW - 12 - barGap * (keys.length - 1)) / keys.length
 
   const yFor = (val: number) => CHART_PADDING_TOP + chartH - (val / maxVal) * chartH
   const barHeight = (val: number) => (val / maxVal) * chartH
@@ -354,7 +361,7 @@ function GroupedBarChart({ rows }: { rows: TeamAcquisitionCounts[] }) {
 
             return (
               <g key={row.teamId}>
-                {COUNT_KEYS.map((key, ki) => {
+                {keys.map((key, ki) => {
                   const value = row.counts[key]
                   const x = groupX + ki * (barW + barGap)
                   const { color } = styleFor(key)
@@ -432,40 +439,43 @@ interface ColumnDef {
   render: (r: TeamAcquisitionCounts) => React.ReactNode
 }
 
-const TABLE_COLUMNS: ColumnDef[] = [
-  ...COUNT_KEYS.map(
-    (key): ColumnDef => ({
-      key,
-      label: key.toUpperCase(),
-      width: '110px',
-      description: `Players currently on the roster acquired via ${key}`,
+function buildTableColumns(keys: CountKey[]): ColumnDef[] {
+  return [
+    ...keys.map(
+      (key): ColumnDef => ({
+        key,
+        label: key.toUpperCase(),
+        width: '110px',
+        description: `Players currently on the roster acquired via ${key}`,
+        defaultDir: 'desc',
+        sortValue: (r) => r.counts[key],
+        render: (r) => r.counts[key],
+      })
+    ),
+    {
+      key: 'total',
+      label: 'TOTAL',
+      width: '90px',
+      description: 'Total rostered players',
       defaultDir: 'desc',
-      sortValue: (r) => r.counts[key],
-      render: (r) => r.counts[key],
-    })
-  ),
-  {
-    key: 'total',
-    label: 'TOTAL',
-    width: '90px',
-    description: 'Total rostered players',
-    defaultDir: 'desc',
-    sortValue: (r) => r.total,
-    render: (r) => r.total,
-  },
-]
+      sortValue: (r) => r.total,
+      render: (r) => r.total,
+    },
+  ]
+}
 
-const TABLE_GRID_TEMPLATE = `minmax(0, 1fr) ${TABLE_COLUMNS.map((c) => c.width).join(' ')}`
-
-function TeamTable({ rows }: { rows: TeamAcquisitionCounts[] }) {
+function TeamTable({ rows, keys }: { rows: TeamAcquisitionCounts[]; keys: CountKey[] }) {
   const [sort, setSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'total', dir: 'desc' })
+  const columns = useMemo(() => buildTableColumns(keys), [keys])
+  const gridTemplate = `minmax(0, 1fr) ${columns.map((c) => c.width).join(' ')}`
+  const minWidth = 300 + columns.reduce((sum, c) => sum + parseInt(c.width, 10) + 16, 0)
 
   const sortedRows = useMemo(() => {
-    const column = TABLE_COLUMNS.find((c) => c.key === sort.key)
+    const column = columns.find((c) => c.key === sort.key)
     if (!column) return rows
     const sign = sort.dir === 'asc' ? 1 : -1
     return [...rows].sort((a, b) => sign * (column.sortValue(a) - column.sortValue(b)))
-  }, [rows, sort])
+  }, [rows, sort, columns])
 
   const toggleSort = (column: ColumnDef) => {
     setSort((prev) =>
@@ -477,12 +487,12 @@ function TeamTable({ rows }: { rows: TeamAcquisitionCounts[] }) {
 
   return (
     <div className="table-scroll" style={{ background: '#131a2b', border: '1px solid #232c47', borderRadius: 10 }} role="table" aria-label="Acquisitions by team">
-      <div style={{ minWidth: 900 }}>
+      <div style={{ minWidth }}>
         <div
           role="row"
           style={{
             display: 'grid',
-            gridTemplateColumns: TABLE_GRID_TEMPLATE,
+            gridTemplateColumns: gridTemplate,
             padding: '10px 20px',
             borderBottom: '1px solid #232c47',
             gap: 16,
@@ -495,7 +505,7 @@ function TeamTable({ rows }: { rows: TeamAcquisitionCounts[] }) {
           >
             TEAM / OWNER
           </span>
-          {TABLE_COLUMNS.map((col) => {
+          {columns.map((col) => {
             const active = sort.key === col.key
             const dir = active ? sort.dir : col.defaultDir
             const ariaSort = active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'
@@ -537,7 +547,7 @@ function TeamTable({ rows }: { rows: TeamAcquisitionCounts[] }) {
             className="row-enter"
             style={{
               display: 'grid',
-              gridTemplateColumns: TABLE_GRID_TEMPLATE,
+              gridTemplateColumns: gridTemplate,
               padding: '11px 20px',
               borderBottom: idx < sortedRows.length - 1 ? '1px solid #1b2438' : 'none',
               gap: 16,
@@ -556,7 +566,7 @@ function TeamTable({ rows }: { rows: TeamAcquisitionCounts[] }) {
                 {row.ownerName}
               </div>
             </div>
-            {TABLE_COLUMNS.map((col) => (
+            {columns.map((col) => (
               <div
                 key={col.key}
                 role="cell"
