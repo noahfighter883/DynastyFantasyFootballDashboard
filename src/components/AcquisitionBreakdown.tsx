@@ -215,37 +215,43 @@ function Legend() {
 
 function ScopeToggle({ scope, onChange }: { scope: SortScope; onChange: (s: SortScope) => void }) {
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        background: '#131a2b',
-        border: '1px solid #232c47',
-        borderRadius: 7,
-        padding: 3,
-        gap: 2,
-        marginBottom: 20,
-      }}
-    >
-      {(['starters', 'starters_plus1', 'roster'] as SortScope[]).map((s) => (
-        <button
-          key={s}
-          onClick={() => onChange(s)}
-          aria-pressed={scope === s}
-          style={{
-            padding: '5px 14px',
-            borderRadius: 5,
-            fontSize: 12,
-            fontWeight: scope === s ? 600 : 400,
-            background: scope === s ? '#3b82f6' : 'transparent',
-            color: scope === s ? '#fff' : '#6b7280',
-            border: 'none',
-            cursor: 'pointer',
-            transition: 'all 0.15s',
-          }}
-        >
-          {s === 'starters' ? 'Starters Only' : s === 'starters_plus1' ? 'Starters +1' : 'Full Roster'}
-        </button>
-      ))}
+    <div style={{ marginBottom: 20 }}>
+      <div
+        style={{
+          display: 'inline-flex',
+          background: '#131a2b',
+          border: '1px solid #232c47',
+          borderRadius: 7,
+          padding: 3,
+          gap: 2,
+        }}
+      >
+        {(['starters', 'starters_plus1', 'roster'] as SortScope[]).map((s) => (
+          <button
+            key={s}
+            onClick={() => onChange(s)}
+            aria-pressed={scope === s}
+            style={{
+              padding: '5px 14px',
+              borderRadius: 5,
+              fontSize: 12,
+              fontWeight: scope === s ? 600 : 400,
+              background: scope === s ? '#3b82f6' : 'transparent',
+              color: scope === s ? '#fff' : '#6b7280',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s',
+            }}
+          >
+            {s === 'starters' ? 'Starters Only' : s === 'starters_plus1' ? 'Starters +1' : 'Full Roster'}
+          </button>
+        ))}
+      </div>
+      {scope === 'starters_plus1' && (
+        <div style={{ fontSize: 11, color: '#4b5563', fontFamily: 'JetBrains Mono, monospace', marginTop: 6 }}>
+          +1 = best bench player added at each of QB, RB, WR, TE
+        </div>
+      )}
     </div>
   )
 }
